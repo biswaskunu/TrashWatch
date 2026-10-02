@@ -4,10 +4,10 @@
 
 ```rust
 // Game Timing
-pub const TICK_RATE_HZ: u64 = 60;
-pub const TICK_MS: u32 = 1000 / TICK_RATE_HZ;  // 16ms
-pub const BROADCAST_RATE_HZ: u64 = 10;
-pub const BROADCAST_INTERVAL_MS: u64 = 1000 / BROADCAST_RATE_HZ;  // 100ms
+pub const TICK_RATE_HZ: u32 = 60;
+pub const TICK_MS: u32 = 1000 / TICK_RATE_HZ; // 16ms
+pub const BROADCAST_RATE_HZ: u32 = 10;
+pub const BROADCAST_INTERVAL_MS: u32 = 1000 / BROADCAST_RATE_HZ; // 100ms
 
 // Lock Delay
 pub const LOCK_DELAY_MS: u32 = 500;
@@ -47,16 +47,19 @@ pub const EMPTY_CHAR: &str = "  ";
 
 // Colors (ANSI 256)
 pub mod color {
-    pub const I: u8 = 51;    // Cyan
-    pub const O: u8 = 226;   // Yellow
-    pub const T: u8 = 201;   // Magenta
-    pub const S: u8 = 46;    // Green
-    pub const Z: u8 = 196;   // Red
-    pub const J: u8 = 33;    // Blue
-    pub const L: u8 = 208;   // Orange
+    pub const I: u8 = 51; // Cyan
+    pub const O: u8 = 226; // Yellow
+    pub const T: u8 = 201; // Magenta
+    pub const S: u8 = 46; // Green
+    pub const Z: u8 = 196; // Red
+    pub const J: u8 = 33; // Blue
+    pub const L: u8 = 208; // Orange
     pub const GHOST: u8 = 244;
     pub const BORDER: u8 = 240;
     pub const TEXT: u8 = 255;
     pub const TRASH: u8 = 118;
 }
+
+// 7-bag randomizer
+pub const BAG_SIZE: usize = 7;
 ```

@@ -1,6 +1,6 @@
 # TrashWatch — Detailed Design
 
-**Version:** 1.0
+**Version:** 1.1 (Updated to match implementation)
 
 ---
 
@@ -17,7 +17,11 @@ pub struct Cell {
     pub is_ghost: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+impl Cell {
+    pub fn empty() -> Self { Self { kind: None, is_ghost: false } }
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
 pub struct Piece {
     pub kind: PieceKind,
     pub rotation: u8,      // 0-3
@@ -27,7 +31,7 @@ pub struct Piece {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct GameState {
-    pub board: [[Cell; 10]; 20],
+    pub board: [[Cell; BOARD_WIDTH]; BOARD_HEIGHT],
     pub current_piece: Option<Piece>,
     pub next_piece: Piece,
     pub score: u32,
@@ -36,6 +40,7 @@ pub struct GameState {
     pub trash_streak: u8,
     pub lock_delay_ms: u32,
     pub lock_resets: u8,
+    pub gravity_accum: u32,
     pub is_paused: bool,
     pub is_game_over: bool,
 }
@@ -43,73 +48,136 @@ pub struct GameState {
 
 ### 1.2 Piece Definitions (Simple 90° Rotation)
 Each piece has 4 rotations defined as `[(x, y); 4]` offsets from origin.
+Uses `PIECE_SHAPES: [[[(i8, i8); 4]; 4]; 7]` — 7 pieces × 4 rotations × 4 blocks.
+O-piece uses identical shapes for all 4 rotations.
 
 ```rust
-const PIECE_SHAPES: [&[[(i8, i8); 4]; 4]; 7] = [
-    // I
-    &[[(0,0),(1,0),(2,0),(3,0)], [(2,0),(2,1),(2,2),(2,3)], ...],
-    // O (all same)
-    &[[(0,0),(1,0),(0,1),(1,1)]; 4],
-    // T, S, Z, J, L ...
-];
+impl PieceKind {
+    pub fn shapes(&self) -> &[[(i8, i8); 4]; 4] {
+        &PIECE_SHAPES[*self as usize]
+    }
+}
 ```
 
-### 1.3 Key Algorithms
+### 1.3 7-Bag Randomizer
+```rust
+pub struct BagRandomizer {
+    bag: Vec<PieceKind>,
+    rng: StdRng,
+}
+
+impl BagRandomizer {
+    pub fn new() -> Self { /* shuffles all 7 pieces */ }
+    pub fn next(&mut self) -> PieceKind { /* pop or refill */ }
+}
+```
+
+### 1.4 Key Algorithms
 
 **Collision Check:**
 ```rust
 fn collides(&self, piece: &Piece, dx: i8, dy: i8, drot: i8) -> bool {
-    let rot = (piece.rotation + drot) & 3;
-    for (px, py) in SHAPES[piece.kind][rot] {
+    let rot = ((piece.rotation as i8 + drot) & 3) as usize;
+    for (px, py) in self.kind_shapes(piece.kind)[rot] {
         let x = piece.x + px + dx;
         let y = piece.y + py + dy;
-        if x < 0 || x >= 10 || y >= 20 { return true; }
+        if x < 0 || x >= BOARD_WIDTH as i8 || y >= BOARD_HEIGHT as i8 { return true; }
         if y >= 0 && self.board[y as usize][x as usize].kind.is_some() { return true; }
     }
     false
 }
 ```
 
-**Line Clear:**
+**Line Clear (handles multi-line clears correctly):**
 ```rust
 fn clear_lines(&mut self) -> u8 {
     let mut cleared = 0;
-    for y in (0..20).rev() {
+    let mut y = BOARD_HEIGHT;
+    while y > 0 {
+        y -= 1;
         if self.board[y].iter().all(|c| c.kind.is_some()) {
             cleared += 1;
-            // Shift down
             for yy in (1..=y).rev() {
                 self.board[yy] = self.board[yy - 1];
             }
-            self.board[0] = [Cell::empty(); 10];
+            self.board[0] = [Cell::empty(); BOARD_WIDTH];
+            y += 1; // Re-check this index after shift
         }
     }
     cleared
 }
 ```
 
-**Lock Delay:**
+**Lock Delay (checked every tick + max resets):**
 ```rust
 const LOCK_DELAY_MS: u32 = 500;
 const MAX_LOCK_RESETS: u8 = 15;
 
-fn tick(&mut self, dt_ms: u32) {
+pub fn tick(&mut self, dt_ms: u32, bag: &mut BagRandomizer) {
     if self.is_paused || self.is_game_over { return; }
-    
+
+    if self.current_piece.is_none() {
+        self.spawn_next(bag);
+        return;
+    }
+
+    // Lock delay checked independently every tick
     if let Some(piece) = self.current_piece {
-        // Try gravity
-        if !self.collides(piece, 0, 1, 0) {
-            self.current_piece.as_mut().unwrap().y += 1;
-            self.lock_delay_ms = 0;
-        } else {
+        if self.collides(&piece, 0, 1, 0) {
             self.lock_delay_ms += dt_ms;
-            if self.lock_delay_ms >= LOCK_DELAY_MS {
-                self.lock_piece();
+            if self.try_lock() { return; }
+        } else {
+            self.lock_delay_ms = 0;
+        }
+    }
+
+    // Gravity accumulator
+    let frames_per_cell = GRAVITY_TABLE[self.level.min(29) as usize];
+    let ms_per_cell = frames_per_cell * TICK_MS;
+    self.gravity_accum += dt_ms;
+    while self.gravity_accum >= ms_per_cell {
+        if let Some(piece) = self.current_piece {
+            let can_fall = !self.collides(&piece, 0, 1, 0);
+            if can_fall {
+                self.current_piece.as_mut().unwrap().y += 1;
+                self.lock_delay_ms = 0;
+            } else if self.try_lock() {
+                self.gravity_accum = 0;
+                break;
             }
         }
-    } else {
-        self.spawn_next();
+        self.gravity_accum -= ms_per_cell;
     }
+}
+
+fn try_lock(&mut self) -> bool {
+    if self.lock_delay_ms >= LOCK_DELAY_MS || self.lock_resets >= MAX_LOCK_RESETS {
+        self.lock_piece();
+        true
+    } else { false }
+}
+```
+
+**Scoring & Level:**
+```rust
+fn add_score(&mut self, lines: u8) {
+    let base = match lines {
+        1 => SCORE_SINGLE, 2 => SCORE_DOUBLE,
+        3 => SCORE_TRIPLE, 4 => SCORE_QUAD, _ => 0,
+    };
+    self.score += base * (self.level as u32 + 1);
+    self.lines_cleared += lines as u32;
+    self.level = (self.lines_cleared / LINES_PER_LEVEL) as u8;
+    self.trash_streak = self.trash_streak.saturating_add(1);
+}
+```
+
+**Ghost Piece:**
+```rust
+pub fn ghost_piece(&self) -> Option<Piece> {
+    let mut ghost = self.current_piece?;
+    while !self.collides(&ghost, 0, 1, 0) { ghost.y += 1; }
+    Some(ghost)
 }
 ```
 
@@ -202,7 +270,7 @@ pub struct PieceView {
     pub rotation: u8,
     pub x: i8,
     pub y: i8,
-    pub cells: [(i8, i8); 4],  // Precomputed for rendering
+    pub cells: [(i8, i8); 4],
 }
 ```
 
@@ -214,7 +282,7 @@ pub enum ClientMsg {
     #[serde(rename = "chat")]
     Chat { text: String },
     #[serde(rename = "reaction")]
-    Reaction { emoji: String },  // One of: "🔥", "💀", "🚀", "✨"
+    Reaction { emoji: String },
 }
 ```
 
@@ -248,7 +316,6 @@ pub enum ClientMsg {
 
 ### 4.3 JS Architecture
 ```javascript
-// Single-file vanilla JS (no build step)
 const ws = new WebSocket(`ws://${location.host}/ws/${roomId}`);
 ws.onmessage = (e) => {
   const msg = JSON.parse(e.data);
@@ -270,7 +337,7 @@ function renderState(s) {
 
 function animateReactions() {
   reactions.forEach(r => {
-    r.y -= 0.5;  // Float up
+    r.y -= 0.5;
     r.alpha -= 0.02;
     drawEmoji(r.emoji, r.x, r.y, r.alpha);
   });
@@ -284,17 +351,13 @@ function animateReactions() {
 ## 5. Cloudflare Worker Design (`deploy/worker.js`)
 
 ```javascript
-// deploy/worker.js
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     
-    // WebSocket proxy
     if (url.pathname.startsWith('/ws/')) {
       return proxyWebSocket(request, env.ORIGIN);
     }
-    
-    // Static assets (spectator.html, etc.)
     return env.ASSETS.fetch(request);
   }
 };
@@ -307,16 +370,12 @@ async function proxyWebSocket(request, origin) {
   
   const [client, server] = Object.values(new WebSocketPair());
   
-  // Connect to origin
   const originUrl = new URL(request.url);
   originUrl.host = new URL(origin).host;
   originUrl.protocol = 'wss:';
   
-  const originWs = await fetch(originUrl.toString(), {
-    headers: request.headers,
-  });
+  const originWs = await fetch(originUrl.toString(), { headers: request.headers });
   
-  // Bidirectional piping
   pump(client, originWs);
   pump(originWs, client);
   
@@ -324,7 +383,6 @@ async function proxyWebSocket(request, origin) {
 }
 
 function pump(from, to) {
-  // WebSocketStream piping (simplified)
   const reader = from.readable.getReader();
   const writer = to.writable.getWriter();
   reader.pipeTo(writer);

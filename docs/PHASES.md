@@ -4,26 +4,26 @@
 
 ---
 
-## Phase 0: Project Setup (30 min)
-- [ ] Initialize Cargo project
-- [ ] Create `Cargo.toml` with all dependencies
-- [ ] Create module structure (`src/main.rs`, `game.rs`, `terminal.rs`, `spectator.rs`, `protocol.rs`, `config.rs`)
-- [ ] Verify `cargo check` passes
+## Phase 0: Project Setup (30 min) ✅ COMPLETE
+- [x] Initialize Cargo project
+- [x] Create `Cargo.toml` with all dependencies
+- [x] Create module structure (`src/main.rs`, `game.rs`, `terminal.rs`, `spectator.rs`, `protocol.rs`, `config.rs`)
+- [x] Verify `cargo check` passes
 
 ---
 
-## Phase 1: Game Core (2-3 hrs)
-- [ ] `PieceKind`, `Piece`, `Cell` types
-- [ ] Piece shape tables (7 pieces × 4 rotations)
-- [ ] `GameState` struct + `new()`, `spawn_next()`
-- [ ] Collision detection
-- [ ] Movement: left, right, rotate CW/CCW, soft drop, hard drop
-- [ ] Lock delay logic (500ms, 15 resets)
-- [ ] Line clear detection + scoring
-- [ ] Level progression (every 10 lines)
-- [ ] Ghost piece calculation
-- [ ] Game over detection
-- [ ] Unit tests for core logic
+## Phase 1: Game Core (2-3 hrs) ✅ COMPLETE
+- [x] `PieceKind`, `Piece`, `Cell` types
+- [x] Piece shape tables (7 pieces × 4 rotations)
+- [x] `GameState` struct + `new()`, `spawn_next()`
+- [x] Collision detection
+- [x] Movement: left, right, rotate CW/CCW, soft drop, hard drop
+- [x] Lock delay logic (500ms, 15 resets)
+- [x] Line clear detection + scoring
+- [x] Level progression (every 10 lines)
+- [x] Ghost piece calculation
+- [x] Game over detection
+- [x] Unit tests for core logic (14 tests passing)
 
 ---
 

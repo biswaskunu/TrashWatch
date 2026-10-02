@@ -58,15 +58,23 @@ src/
 
 ### 3.1 Game Tick (60Hz)
 ```
-GameLoop.tick()
+GameLoop.tick(bag: &mut BagRandomizer)
     │
-    ├─► GameState.tick()                    // gravity, lock delay
+    ├─► GameState.tick(dt_ms, bag)          // gravity, lock delay, spawn
     │       │
-    │       ├─► piece.y += 1 (if not locked)
-    │       ├─► lock_delay_timer++ / reset
-    │       └─► if lock_delay >= 500ms → lock_piece()
+    │       ├─► if current_piece.is_none() → spawn_next(bag)
+    │       ├─► Lock delay checked every tick:
+    │       │       if on_ground: lock_delay_ms += dt_ms
+    │       │       if lock_delay >= 500ms OR lock_resets >= 15 → lock_piece()
+    │       ├─► Gravity accumulator (gravity_accum):
+    │       │       gravity_accum += dt_ms
+    │       │       while gravity_accum >= ms_per_cell:
+    │       │           if can_fall: piece.y += 1, lock_delay = 0
+    │       │           else if try_lock(): break
+    │       │           gravity_accum -= ms_per_cell
+    │       └─► Uses GRAVITY_TABLE[level] for ms_per_cell
     │
-    ├─► check_line_clears() → update score/level/trash_streak
+    ├─► lock_piece() → clear_lines() → add_score() → spawn_next(bag)
     │
     └─► if game_over → broadcast final state, stop loop
 ```
@@ -132,12 +140,30 @@ struct Room {
     game: GameState,              // Protected by Mutex
     spectators: Vec<Sender<ServerMsg>>,  // Broadcast channels
     reactions: Vec<ReactionOverlay>,
+    bag: BagRandomizer,           // 7-bag randomizer per room
+}
+
+// GameState (pure, no I/O, Serializable)
+#[derive(Clone, Debug, Serialize)]
+struct GameState {
+    board: [[Cell; BOARD_WIDTH]; BOARD_HEIGHT],
+    current_piece: Option<Piece>,
+    next_piece: Piece,
+    score: u32,
+    level: u8,
+    lines_cleared: u32,
+    trash_streak: u8,
+    lock_delay_ms: u32,
+    lock_resets: u8,
+    gravity_accum: u32,           // Gravity time accumulator
+    is_paused: bool,
+    is_game_over: bool,
 }
 
 // Immutable snapshot for broadcast (Send + Sync)
 #[derive(Serialize)]
 struct GameStateSnapshot {
-    board: [[Cell; 10]; 20],
+    board: [[CellView; 10]; 20],
     current_piece: Option<PieceView>,
     next_piece: PieceView,
     score: u32,
