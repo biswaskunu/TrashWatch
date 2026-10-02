@@ -8,27 +8,27 @@ use std::sync::Arc;
 use uuid::Uuid;
 use crate::{protocol::*, game::*, config::*};
 
-struct ReactionOverlay {
-    emoji: String,
-    x: f32,
-    y: f32,
-    ttl_ms: u32,
+pub struct ReactionOverlay {
+    pub emoji: String,
+    pub x: f32,
+    pub y: f32,
+    pub ttl_ms: u32,
 }
 
-struct Spectator {
-    id: Uuid,
-    tx: mpsc::Sender<ServerMsg>,
+pub struct Spectator {
+    pub id: Uuid,
+    pub tx: mpsc::Sender<ServerMsg>,
 }
 
-struct Room {
-    id: Uuid,
-    game: Arc<Mutex<GameState>>,
-    bag: Arc<Mutex<BagRandomizer>>,
-    spectators: Vec<Spectator>,
-    reactions: Vec<ReactionOverlay>,
+pub struct Room {
+    pub id: Uuid,
+    pub game: Arc<Mutex<GameState>>,
+    pub bag: Arc<Mutex<BagRandomizer>>,
+    pub spectators: Vec<Spectator>,
+    pub reactions: Vec<ReactionOverlay>,
 }
 
-type RoomRegistry = Arc<Mutex<Option<Room>>>;
+pub type RoomRegistry = Arc<Mutex<Option<Room>>>;
 
 pub async fn create_room(registry: &RoomRegistry) -> Uuid {
     let mut reg = registry.lock().await;
