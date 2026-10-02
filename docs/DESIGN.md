@@ -1,6 +1,11 @@
 # TrashWatch — Detailed Design
 
-**Version:** 1.1 (Updated to match implementation)
+**Version:** 1.2 (Updated to match Phase 1-2 implementation)
+
+---
+
+> **Status:** Sections 1-2 (Game Logic, Terminal Renderer) are **implemented**.
+> Sections 3-5 (Spectator Protocol, Browser UI, Cloudflare Worker) are **planned** for Phases 3-6.
 
 ---
 

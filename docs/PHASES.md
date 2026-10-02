@@ -27,16 +27,16 @@
 
 ---
 
-## Phase 2: Terminal Renderer (1-2 hrs)
-- [ ] `TerminalRenderer` struct + `new()` (raw mode, alt screen)
-- [ ] `draw(&mut self, state: &GameState)` — full render
-- [ ] Board rendering with colors
-- [ ] Ghost piece rendering
-- [ ] Next piece preview
-- [ ] HUD: Score, Level, Lines, Trash Streak
-- [ ] Overlays: Start, Pause, Game Over
-- [ ] Input handling loop (crossterm events)
-- [ ] Cleanup on Drop
+## Phase 2: Terminal Renderer (1-2 hrs) ✅ COMPLETE
+- [x] `TerminalRenderer` struct + `new()` (raw mode, alt screen)
+- [x] `draw(&mut self, state: &GameState)` — full render
+- [x] Board rendering with colors
+- [x] Ghost piece rendering
+- [x] Next piece preview
+- [x] HUD: Score, Level, Lines, Trash Streak
+- [x] Overlays: Start, Pause, Game Over
+- [x] Input handling loop (crossterm events)
+- [x] Cleanup on Drop
 
 ---
 

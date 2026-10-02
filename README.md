@@ -25,14 +25,8 @@ Terminal Tetris with live browser spectators.
 ## Quick Start
 
 ```bash
-# Build and run (terminal game + server)
+# Build and run (terminal game only — server/spectator in Phase 4)
 cargo run
-
-# Run and auto-open browser spectator
-cargo run -- --spectator
-
-# Custom port
-cargo run -- --port 8080
 ```
 
 ### Controls (Terminal)
@@ -67,12 +61,12 @@ TrashWatch/
 │   ├── main.rs          # Entry, CLI, Axum server, game loop
 │   ├── game.rs          # Pure Tetris logic
 │   ├── terminal.rs      # Crossterm renderer + input
-│   ├── spectator.rs     # WebSocket handler, rooms, broadcast
-│   ├── protocol.rs      # WS message types (serde)
+│   ├── spectator.rs     # WebSocket handler, rooms, broadcast (Phase 3)
+│   ├── protocol.rs      # WS message types (serde) (Phase 3)
 │   └── config.rs        # Constants
-├── spectator.html       # Browser UI (vanilla JS, Canvas)
+├── spectator.html       # Browser UI (vanilla JS, Canvas) (Phase 5)
 ├── deploy/
-│   └── worker.js        # Cloudflare Workers proxy
+│   └── worker.js        # Cloudflare Workers proxy (Phase 6)
 └── docs/                # All documentation
 ```
 
@@ -80,9 +74,10 @@ TrashWatch/
 
 ## Tech Stack
 
-- **Rust** — Axum, Tokio, Tungstenite, Serde, Crossterm, DashMap, UUID
-- **Browser** — Vanilla JS, Canvas 2D, WebSocket
-- **Deploy** — Cloudflare Workers (proxy), Fly.io/Render (origin)
+- **Rust (current)** — Crossterm, Serde, Anyhow, Thiserror, Clap, Rand
+- **Rust (planned)** — Axum, Tokio, Tungstenite, DashMap, UUID (Phase 3+)
+- **Browser (planned)** — Vanilla JS, Canvas 2D, WebSocket (Phase 5)
+- **Deploy (planned)** — Cloudflare Workers (proxy), Fly.io/Render (origin) (Phase 6)
 
 ---
 
