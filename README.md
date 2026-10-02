@@ -25,8 +25,11 @@ Terminal Tetris with live browser spectators.
 ## Quick Start
 
 ```bash
-# Build and run (terminal game only — server/spectator in Phase 4)
+# Build and run (terminal game + WebSocket server on :3000)
 cargo run
+
+# Opens terminal game; prints Room ID and spectator URL:
+#   Spectators: http://localhost:3000/?room=<uuid>
 ```
 
 ### Controls (Terminal)
@@ -61,8 +64,8 @@ TrashWatch/
 │   ├── main.rs          # Entry, CLI, Axum server, game loop
 │   ├── game.rs          # Pure Tetris logic
 │   ├── terminal.rs      # Crossterm renderer + input
-│   ├── spectator.rs     # WebSocket handler, rooms, broadcast (Phase 3)
-│   ├── protocol.rs      # WS message types (serde) (Phase 3)
+│   ├── spectator.rs     # WebSocket handler, room, broadcast
+│   ├── protocol.rs      # WS message types (serde)
 │   └── config.rs        # Constants
 ├── spectator.html       # Browser UI (vanilla JS, Canvas) (Phase 5)
 ├── deploy/
@@ -74,8 +77,7 @@ TrashWatch/
 
 ## Tech Stack
 
-- **Rust (current)** — Crossterm, Serde, Anyhow, Thiserror, Clap, Rand
-- **Rust (planned)** — Axum, Tokio, Tungstenite, DashMap, UUID (Phase 3+)
+- **Rust (current)** — Axum, Tokio, Tungstenite, Crossterm, Serde, Anyhow, Thiserror, Clap, Rand, UUID
 - **Browser (planned)** — Vanilla JS, Canvas 2D, WebSocket (Phase 5)
 - **Deploy (planned)** — Cloudflare Workers (proxy), Fly.io/Render (origin) (Phase 6)
 
