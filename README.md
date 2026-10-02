@@ -4,6 +4,8 @@ Terminal Tetris with live browser spectators.
 
 ---
 
+### ( This is a vibe coded project )
+
 ## Documentation
 
 | Document | Description |
@@ -18,7 +20,6 @@ Terminal Tetris with live browser spectators.
 | [`docs/TESTING.md`](docs/TESTING.md) | Testing strategy — unit, integration, property tests |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Deployment guide — local, production, Cloudflare Workers |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Future extensions — post-v1 roadmap |
-( This is a vibe coded project )
 ---
 
 ## Quick Start
