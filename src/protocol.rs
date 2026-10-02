@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum ServerMsg {
     #[serde(rename = "state")]
@@ -14,7 +14,7 @@ pub enum ServerMsg {
     Welcome { room_id: Uuid, your_id: Uuid },
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct GameStateSnapshot {
     pub board: [[CellView; 10]; 20],
     pub current_piece: Option<PieceView>,
@@ -27,13 +27,13 @@ pub struct GameStateSnapshot {
     pub is_game_over: bool,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct CellView {
     pub kind: Option<crate::game::PieceKind>,
     pub is_ghost: bool,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct PieceView {
     pub kind: crate::game::PieceKind,
     pub rotation: u8,
