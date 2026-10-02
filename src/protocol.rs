@@ -53,7 +53,10 @@ pub enum ClientMsg {
 
 impl From<&crate::game::Cell> for CellView {
     fn from(cell: &crate::game::Cell) -> Self {
-        Self { kind: cell.kind, is_ghost: cell.is_ghost }
+        Self {
+            kind: cell.kind,
+            is_ghost: cell.is_ghost,
+        }
     }
 }
 
@@ -78,9 +81,8 @@ impl From<&crate::game::Piece> for PieceView {
 
 impl From<&crate::game::GameState> for GameStateSnapshot {
     fn from(state: &crate::game::GameState) -> Self {
-        let board: [[CellView; 10]; 20] = std::array::from_fn(|y| {
-            std::array::from_fn(|x| (&state.board[y][x]).into())
-        });
+        let board: [[CellView; 10]; 20] =
+            std::array::from_fn(|y| std::array::from_fn(|x| (&state.board[y][x]).into()));
         Self {
             board,
             current_piece: state.current_piece.as_ref().map(|p| p.into()),

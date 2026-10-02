@@ -1,12 +1,15 @@
+use crate::{config::*, game::*, protocol::*};
 use axum::{
-    extract::{ws::{WebSocketUpgrade, Message, WebSocket}, State, Path},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Path, State,
+    },
     response::IntoResponse,
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
-use tokio::sync::{mpsc, Mutex};
 use std::sync::Arc;
+use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
-use crate::{protocol::*, game::*, config::*};
 
 pub struct ReactionOverlay {
     pub emoji: String,
@@ -66,7 +69,10 @@ async fn handle_socket(socket: WebSocket, requested_room_id: Uuid, registry: Roo
                 let _ = sender.send(Message::Close(None)).await;
                 return;
             }
-            room.spectators.push(Spectator { id: spectator_id, tx: tx.clone() });
+            room.spectators.push(Spectator {
+                id: spectator_id,
+                tx: tx.clone(),
+            });
         } else {
             let _ = sender.send(Message::Close(None)).await;
             return;
@@ -82,7 +88,10 @@ async fn handle_socket(socket: WebSocket, requested_room_id: Uuid, registry: Roo
         }
     });
 
-    let welcome = ServerMsg::Welcome { room_id: requested_room_id, your_id };
+    let welcome = ServerMsg::Welcome {
+        room_id: requested_room_id,
+        your_id,
+    };
     let _ = tx.send(welcome).await;
 
     loop {
@@ -118,10 +127,19 @@ async fn handle_client_msg(registry: &RoomRegistry, msg: ClientMsg, your_id: Uui
             ClientMsg::Chat { text } => {
                 let text = text.chars().take(MAX_CHAT_LENGTH).collect::<String>();
                 let chat_msg = ServerMsg::Chat {
-                    from: format!("Spectator#{}", your_id.simple().to_string().chars().take(4).collect::<String>()),
+                    from: format!(
+                        "Spectator#{}",
+                        your_id
+                            .simple()
+                            .to_string()
+                            .chars()
+                            .take(4)
+                            .collect::<String>()
+                    ),
                     text,
                 };
-                room.spectators.retain(|s| s.tx.try_send(chat_msg.clone()).is_ok());
+                room.spectators
+                    .retain(|s| s.tx.try_send(chat_msg.clone()).is_ok());
             }
             ClientMsg::Reaction { emoji } => {
                 if REACTION_EMOJIS.contains(&emoji.as_str()) {
@@ -135,7 +153,8 @@ async fn handle_client_msg(registry: &RoomRegistry, msg: ClientMsg, your_id: Uui
                     };
                     room.reactions.push(reaction);
                     let react_msg = ServerMsg::Reaction { emoji, x, y };
-                    room.spectators.retain(|s| s.tx.try_send(react_msg.clone()).is_ok());
+                    room.spectators
+                        .retain(|s| s.tx.try_send(react_msg.clone()).is_ok());
                 }
             }
         }
@@ -143,7 +162,9 @@ async fn handle_client_msg(registry: &RoomRegistry, msg: ClientMsg, your_id: Uui
 }
 
 pub async fn broadcast_task(registry: RoomRegistry) {
-    let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(BROADCAST_INTERVAL_MS as u64));
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(
+        BROADCAST_INTERVAL_MS as u64,
+    ));
     loop {
         interval.tick().await;
         let mut reg = registry.lock().await;
@@ -157,16 +178,24 @@ pub async fn broadcast_task(registry: RoomRegistry) {
                 r.ttl_ms > 0
             });
             let state_msg = ServerMsg::State(snapshot);
-            room.spectators.retain(|s| s.tx.try_send(state_msg.clone()).is_ok());
+            room.spectators
+                .retain(|s| s.tx.try_send(state_msg.clone()).is_ok());
             for r in &room.reactions {
-                let react_msg = ServerMsg::Reaction { emoji: r.emoji.clone(), x: r.x, y: r.y };
-                room.spectators.retain(|s| s.tx.try_send(react_msg.clone()).is_ok());
+                let react_msg = ServerMsg::Reaction {
+                    emoji: r.emoji.clone(),
+                    x: r.x,
+                    y: r.y,
+                };
+                room.spectators
+                    .retain(|s| s.tx.try_send(react_msg.clone()).is_ok());
             }
         }
     }
 }
 
-pub fn get_room_game(registry: &RoomRegistry) -> Option<(Arc<Mutex<GameState>>, Arc<Mutex<BagRandomizer>>)> {
+pub fn get_room_game(
+    registry: &RoomRegistry,
+) -> Option<(Arc<Mutex<GameState>>, Arc<Mutex<BagRandomizer>>)> {
     let reg = registry.try_lock().ok()?;
     reg.as_ref().map(|r| (r.game.clone(), r.bag.clone()))
 }

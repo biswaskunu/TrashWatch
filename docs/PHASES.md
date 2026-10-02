@@ -40,14 +40,15 @@
 
 ---
 
-## Phase 3: Spectator System (2-3 hrs)
-- [ ] `protocol.rs` — `ServerMsg`, `ClientMsg`, `GameStateSnapshot`
-- [ ] `Room` struct + `DashMap<Uuid, Arc<Mutex<Room>>>`
-- [ ] WS handler: upgrade, join room, send welcome
-- [ ] Broadcast task (10Hz interval)
-- [ ] Chat message broadcast
-- [ ] Reaction handling + overlay management (TTL)
-- [ ] Spectator cleanup on disconnect
+## Phase 3: Spectator System (2-3 hrs) ✅ COMPLETE
+- [x] `protocol.rs` — `ServerMsg`, `ClientMsg`, `GameStateSnapshot` + From impls
+- [x] `Room` struct + `RoomRegistry` (Arc<Mutex<Option<Room>>> for single room)
+- [x] WS handler: upgrade, join room, send welcome
+- [x] Broadcast task (10Hz interval)
+- [x] Chat message broadcast (with MAX_CHAT_LENGTH limit)
+- [x] Reaction handling + overlay management (TTL, random position)
+- [x] Spectator cleanup on disconnect
+- [x] Minimal spectator.html served at `/`
 
 ---
 

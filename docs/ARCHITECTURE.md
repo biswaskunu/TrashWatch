@@ -122,8 +122,8 @@ WS.on_message(msg)
 
 | Component | Concurrency Primitive | Rationale |
 |-----------|----------------------|-----------|
-| Room Registry | `DashMap<Uuid, Arc<Mutex<Room>>>` | Concurrent read (broadcast) + write (join/leave) |
-| Room State | `Mutex<Room>` | Single writer (game loop), multiple readers (WS) |
+| Room Registry | `Arc<Mutex<Option<Room>>>` | Single room, lazy init |
+| Room State | `Arc<Mutex<GameState>>` + `Arc<Mutex<BagRandomizer>>` | Shared main thread + Tokio tasks |
 | Game Loop | Dedicated Tokio task per room | Deterministic 60Hz, no blocking |
 | Broadcast | Dedicated Tokio task (global) | Decoupled from game tick |
 | WS Connections | One task per connection | Backpressure via bounded channel |
@@ -131,16 +131,28 @@ WS.on_message(msg)
 
 ---
 
+### Concurrency Note: Terminal on Main Thread
+
+In the current implementation, the terminal game loop runs on the main thread (blocking) while Axum HTTP/WebSocket server and the broadcast task run on the Tokio runtime. The `Room` state (GameState, BagRandomizer, spectators, reactions) is shared via `Arc<Mutex<>>` between:
+
+- **Main thread**: Terminal renderer + game tick (60Hz) - locks `game` and `bag` mutexes each frame
+- **Tokio tasks**: 
+  - Broadcast task (10Hz) - locks `game` for snapshot, `spectators`/`reactions` for broadcast
+  - WS connection tasks - lock `spectators` for join/leave, `reactions` for new reactions
+  - Axum server - minimal locking
+
+This design avoids the complexity of running crossterm in an async context while keeping the game logic deterministic. The mutex contention is minimal since locks are held for very short durations (microseconds per frame).
+
 ## 5. State Management
 
 ```rust
 // Shared, mutable per-room state
 struct Room {
     id: Uuid,
-    game: GameState,              // Protected by Mutex
-    spectators: Vec<Sender<ServerMsg>>,  // Broadcast channels
-    reactions: Vec<ReactionOverlay>,
-    bag: BagRandomizer,           // 7-bag randomizer per room
+    game: Arc<Mutex<GameState>>,              // Shared with main thread + broadcast
+    bag: Arc<Mutex<BagRandomizer>>,           // Shared with main thread
+    spectators: Vec<Spectator>,               // { id, tx: mpsc::Sender<ServerMsg> }
+    reactions: Vec<ReactionOverlay>,          // { emoji, x, y, ttl_ms }
 }
 
 // GameState (pure, no I/O, Serializable)

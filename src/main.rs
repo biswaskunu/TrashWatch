@@ -5,12 +5,12 @@ mod spectator;
 mod terminal;
 
 use crate::{config::*, game::*, spectator::*, terminal::*};
-use axum::{Router, routing::get, serve, response::Html};
+use axum::{response::Html, routing::get, serve, Router};
 use clap::Parser;
 use std::sync::Arc;
-use tokio::sync::Mutex;
-use tokio::net::TcpListener;
 use std::time::{Duration, Instant};
+use tokio::net::TcpListener;
+use tokio::sync::Mutex;
 
 #[derive(Parser)]
 #[command(name = "trashwatch")]
@@ -59,7 +59,10 @@ async fn main() -> anyhow::Result<()> {
 
     let room_id = create_room(&registry).await;
     println!("Room ID: {}", room_id);
-    println!("Spectators: http://localhost:{}/?room={}", args.port, room_id);
+    println!(
+        "Spectators: http://localhost:{}/?room={}",
+        args.port, room_id
+    );
 
     let broadcast_registry = registry.clone();
     tokio::spawn(async move {
