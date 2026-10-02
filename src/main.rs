@@ -4,8 +4,8 @@ mod protocol;
 mod spectator;
 mod terminal;
 
-use std::time::{Duration, Instant};
 use crate::{config::*, game::*, terminal::*};
+use std::time::{Duration, Instant};
 
 fn main() -> anyhow::Result<()> {
     let mut renderer = TerminalRenderer::new()?;
