@@ -1,8 +1,8 @@
 // Game Timing
-pub const TICK_RATE_HZ: u64 = 60;
+pub const TICK_RATE_HZ: u32 = 60;
 pub const TICK_MS: u32 = 1000 / TICK_RATE_HZ; // 16ms
-pub const BROADCAST_RATE_HZ: u64 = 10;
-pub const BROADCAST_INTERVAL_MS: u64 = 1000 / BROADCAST_RATE_HZ; // 100ms
+pub const BROADCAST_RATE_HZ: u32 = 10;
+pub const BROADCAST_INTERVAL_MS: u32 = 1000 / BROADCAST_RATE_HZ; // 100ms
 
 // Lock Delay
 pub const LOCK_DELAY_MS: u32 = 500;
@@ -11,9 +11,8 @@ pub const MAX_LOCK_RESETS: u8 = 15;
 // Gravity (frames per cell at each level)
 // Level 0: 48 frames (~800ms), Level 10: 6 frames (~100ms), Level 20+: 1 frame
 pub const GRAVITY_TABLE: [u32; 30] = [
-    48, 43, 38, 33, 28, 23, 18, 13, 8, 6,
-    5, 5, 5, 4, 4, 4, 3, 3, 3, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 1,
+    48, 43, 38, 33, 28, 23, 18, 13, 8, 6, 5, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    1,
 ];
 
 // Scoring

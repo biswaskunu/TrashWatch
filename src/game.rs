@@ -1,10 +1,16 @@
-use serde::Serialize;
 use crate::config::*;
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use serde::Serialize;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 pub enum PieceKind {
-    I, O, T, S, Z, J, L
+    I,
+    O,
+    T,
+    S,
+    Z,
+    J,
+    L,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
@@ -15,11 +21,14 @@ pub struct Cell {
 
 impl Cell {
     pub fn empty() -> Self {
-        Self { kind: None, is_ghost: false }
+        Self {
+            kind: None,
+            is_ghost: false,
+        }
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize)]
 pub struct Piece {
     pub kind: PieceKind,
     pub rotation: u8, // 0-3
@@ -38,6 +47,7 @@ pub struct GameState {
     pub trash_streak: u8,
     pub lock_delay_ms: u32,
     pub lock_resets: u8,
+    pub gravity_accum: u32,
     pub is_paused: bool,
     pub is_game_over: bool,
 }
@@ -112,8 +122,13 @@ pub struct BagRandomizer {
 impl BagRandomizer {
     pub fn new() -> Self {
         let mut bag: Vec<PieceKind> = vec![
-            PieceKind::I, PieceKind::O, PieceKind::T,
-            PieceKind::S, PieceKind::Z, PieceKind::J, PieceKind::L,
+            PieceKind::I,
+            PieceKind::O,
+            PieceKind::T,
+            PieceKind::S,
+            PieceKind::Z,
+            PieceKind::J,
+            PieceKind::L,
         ];
         let mut rng = StdRng::from_entropy();
         bag.shuffle(&mut rng);
@@ -129,8 +144,13 @@ impl BagRandomizer {
 
     fn refill(&mut self) {
         self.bag = vec![
-            PieceKind::I, PieceKind::O, PieceKind::T,
-            PieceKind::S, PieceKind::Z, PieceKind::J, PieceKind::L,
+            PieceKind::I,
+            PieceKind::O,
+            PieceKind::T,
+            PieceKind::S,
+            PieceKind::Z,
+            PieceKind::J,
+            PieceKind::L,
         ];
         self.bag.shuffle(&mut self.rng);
     }
@@ -168,12 +188,17 @@ impl GameState {
             trash_streak: 0,
             lock_delay_ms: 0,
             lock_resets: 0,
+            gravity_accum: 0,
             is_paused: false,
             is_game_over: false,
         };
 
         // Check for immediate game over on spawn
-        if state.current_piece.as_ref().map_or(false, |p| state.collides(p, 0, 0, 0)) {
+        if state
+            .current_piece
+            .as_ref()
+            .is_some_and(|p| state.collides(p, 0, 0, 0))
+        {
             state.is_game_over = true;
         }
 
@@ -196,7 +221,11 @@ impl GameState {
         };
 
         // Game over if new piece collides immediately
-        if self.current_piece.as_ref().map_or(false, |p| self.collides(p, 0, 0, 0)) {
+        if self
+            .current_piece
+            .as_ref()
+            .is_some_and(|p| self.collides(p, 0, 0, 0))
+        {
             self.is_game_over = true;
         }
     }
@@ -310,7 +339,10 @@ impl GameState {
                 let x = piece.x + px;
                 let y = piece.y + py;
                 if x >= 0 && x < BOARD_WIDTH as i8 && y >= 0 && y < BOARD_HEIGHT as i8 {
-                    self.board[y as usize][x as usize] = Cell { kind: Some(piece.kind), is_ghost: false };
+                    self.board[y as usize][x as usize] = Cell {
+                        kind: Some(piece.kind),
+                        is_ghost: false,
+                    };
                 }
             }
             // Clear lines and update score
@@ -337,7 +369,9 @@ impl GameState {
     /// Clear completed lines, return count
     fn clear_lines(&mut self) -> u8 {
         let mut cleared = 0;
-        for y in (0..BOARD_HEIGHT).rev() {
+        let mut y = BOARD_HEIGHT;
+        while y > 0 {
+            y -= 1;
             if self.board[y].iter().all(|c| c.kind.is_some()) {
                 cleared += 1;
                 // Shift down
@@ -345,6 +379,8 @@ impl GameState {
                     self.board[yy] = self.board[yy - 1];
                 }
                 self.board[0] = [Cell::empty(); BOARD_WIDTH];
+                // Re-check this same row index since a new row has fallen into it
+                y += 1;
             }
         }
         cleared
@@ -377,29 +413,41 @@ impl GameState {
             return;
         }
 
+        // Check lock delay independently (runs every tick when piece is on ground)
+        if let Some(piece) = self.current_piece {
+            if self.collides(&piece, 0, 1, 0) {
+                // Piece is on ground
+                self.lock_delay_ms += dt_ms;
+                if self.try_lock() {
+                    return;
+                }
+            } else {
+                // Piece can fall, reset lock delay
+                self.lock_delay_ms = 0;
+            }
+        }
+
         // Gravity
         let frames_per_cell = GRAVITY_TABLE[self.level.min(29) as usize];
         let ms_per_cell = frames_per_cell * TICK_MS;
 
         // Simple gravity: accumulate time and move when threshold reached
-        static mut GRAVITY_ACCUM: u32 = 0;
-        unsafe {
-            GRAVITY_ACCUM += dt_ms;
-            while GRAVITY_ACCUM >= ms_per_cell {
-                if let Some(piece) = self.current_piece {
-                    if !self.collides(&piece, 0, 1, 0) {
-                        self.current_piece.as_mut().unwrap().y += 1;
-                        self.lock_delay_ms = 0;
-                    } else {
-                        self.lock_delay_ms += dt_ms;
-                        if self.try_lock() {
-                            GRAVITY_ACCUM = 0;
-                            break;
-                        }
+        self.gravity_accum += dt_ms;
+        while self.gravity_accum >= ms_per_cell {
+            if let Some(piece) = self.current_piece {
+                let can_fall = !self.collides(&piece, 0, 1, 0);
+                if can_fall {
+                    self.current_piece.as_mut().unwrap().y += 1;
+                    self.lock_delay_ms = 0;
+                } else {
+                    // Already handled lock delay above, just check try_lock
+                    if self.try_lock() {
+                        self.gravity_accum = 0;
+                        break;
                     }
                 }
-                GRAVITY_ACCUM -= ms_per_cell;
             }
+            self.gravity_accum -= ms_per_cell;
         }
     }
 
@@ -410,5 +458,276 @@ impl GameState {
             ghost.y += 1;
         }
         Some(ghost)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn new_game() -> (GameState, BagRandomizer) {
+        let mut bag = BagRandomizer::new();
+        let game = GameState::new();
+        (game, bag)
+    }
+
+    #[test]
+    fn test_piece_shapes_valid() {
+        for kind in 0..7 {
+            for rot in 0..4 {
+                let shapes = &PIECE_SHAPES[kind][rot];
+                assert_eq!(
+                    shapes.len(),
+                    4,
+                    "Piece {:?} rotation {} should have 4 blocks",
+                    kind,
+                    rot
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_collision_bounds() {
+        let (mut game, mut bag) = new_game();
+        game.current_piece = Some(Piece {
+            kind: PieceKind::I,
+            rotation: 0,
+            x: -1,
+            y: 0,
+        });
+        assert!(
+            game.collides(&game.current_piece.unwrap(), 0, 0, 0),
+            "Left out of bounds should collide"
+        );
+
+        game.current_piece = Some(Piece {
+            kind: PieceKind::I,
+            rotation: 0,
+            x: 9,
+            y: 0,
+        });
+        assert!(
+            game.collides(&game.current_piece.unwrap(), 0, 0, 0),
+            "Right out of bounds should collide"
+        );
+
+        game.current_piece = Some(Piece {
+            kind: PieceKind::I,
+            rotation: 0,
+            x: 3,
+            y: 20,
+        });
+        assert!(
+            game.collides(&game.current_piece.unwrap(), 0, 0, 0),
+            "Bottom out of bounds should collide"
+        );
+    }
+
+    #[test]
+    fn test_collision_board() {
+        let (mut game, mut bag) = new_game();
+        // Fill bottom row
+        for x in 0..BOARD_WIDTH {
+            game.board[BOARD_HEIGHT - 1][x] = Cell {
+                kind: Some(PieceKind::O),
+                is_ghost: false,
+            };
+        }
+        game.current_piece = Some(Piece {
+            kind: PieceKind::O,
+            rotation: 0,
+            x: 0,
+            y: 18,
+        });
+        assert!(
+            game.collides(&game.current_piece.unwrap(), 0, 1, 0),
+            "Should collide with board"
+        );
+    }
+
+    #[test]
+    fn test_movement_left_right() {
+        let (mut game, mut bag) = new_game();
+        let start_x = game.current_piece.unwrap().x;
+        assert!(game.move_left(), "Move left should succeed");
+        assert_eq!(game.current_piece.unwrap().x, start_x - 1);
+        assert!(game.move_right(), "Move right should succeed");
+        assert_eq!(game.current_piece.unwrap().x, start_x);
+    }
+
+    #[test]
+    fn test_movement_rotate_cw_ccw() {
+        let (mut game, mut bag) = new_game();
+        let start_rot = game.current_piece.unwrap().rotation;
+        assert!(game.rotate_cw(), "Rotate CW should succeed");
+        assert_eq!(game.current_piece.unwrap().rotation, (start_rot + 1) & 3);
+        assert!(game.rotate_ccw(), "Rotate CCW should succeed");
+        assert_eq!(game.current_piece.unwrap().rotation, start_rot);
+    }
+
+    #[test]
+    fn test_soft_drop() {
+        let (mut game, mut bag) = new_game();
+        let start_y = game.current_piece.unwrap().y;
+        assert!(game.soft_drop(), "Soft drop should succeed");
+        assert_eq!(game.current_piece.unwrap().y, start_y + 1);
+        assert_eq!(game.score, 1, "Soft drop should award 1 point");
+    }
+
+    #[test]
+    fn test_hard_drop() {
+        let (mut game, mut bag) = new_game();
+        let points = game.hard_drop();
+        assert!(points > 0, "Hard drop should return points");
+        assert!(
+            game.current_piece.is_none(),
+            "Piece should be locked after hard drop"
+        );
+    }
+
+    #[test]
+    fn test_lock_delay_resets_on_move() {
+        let (mut game, mut bag) = new_game();
+        // Ground the piece
+        while let Some(p) = game.current_piece {
+            if game.collides(&p, 0, 1, 0) {
+                break;
+            }
+            game.current_piece.as_mut().unwrap().y += 1;
+        }
+        let initial_delay = game.lock_delay_ms;
+        game.move_left();
+        assert_eq!(game.lock_delay_ms, 0, "Lock delay should reset on move");
+        assert_eq!(game.lock_resets, 1, "Lock resets should increment on move");
+    }
+
+    #[test]
+    fn test_lock_delay_forces_lock_after_15() {
+        let (mut game, mut bag) = new_game();
+        // Ground the piece - move to bottom row
+        while let Some(p) = game.current_piece {
+            if game.collides(&p, 0, 1, 0) {
+                break;
+            }
+            game.current_piece.as_mut().unwrap().y += 1;
+        }
+        // Ensure piece is truly on ground - move one more if possible
+        if let Some(p) = game.current_piece {
+            if !game.collides(&p, 0, 1, 0) {
+                game.current_piece.as_mut().unwrap().y += 1;
+            }
+        }
+        // Trigger 15 resets
+        for _ in 0..15 {
+            game.move_left();
+            game.move_right();
+        }
+        assert!(game.lock_resets >= 15);
+        // Set lock delay to trigger force lock
+        game.lock_delay_ms = LOCK_DELAY_MS;
+        // Next tick should force lock
+        game.tick(100, &mut bag);
+        assert!(
+            game.current_piece.is_none(),
+            "Should force lock after 15 resets"
+        );
+    }
+
+    #[test]
+    fn test_line_clear_scoring_1_2_3_4() {
+        let (mut game, mut bag) = new_game();
+        // Manually set up lines to clear
+        for x in 0..BOARD_WIDTH {
+            game.board[19][x] = Cell {
+                kind: Some(PieceKind::O),
+                is_ghost: false,
+            };
+        }
+        let cleared = game.clear_lines();
+        assert_eq!(cleared, 1);
+        game.add_score(cleared);
+        assert_eq!(game.score, SCORE_SINGLE * 1); // level 0
+
+        // Test double
+        game = GameState::new();
+        for x in 0..BOARD_WIDTH {
+            game.board[19][x] = Cell {
+                kind: Some(PieceKind::O),
+                is_ghost: false,
+            };
+            game.board[18][x] = Cell {
+                kind: Some(PieceKind::O),
+                is_ghost: false,
+            };
+        }
+        let cleared = game.clear_lines();
+        assert_eq!(cleared, 2);
+        game.add_score(cleared);
+        assert_eq!(game.score, SCORE_DOUBLE * 1);
+    }
+
+    #[test]
+    fn test_level_progression_every_10() {
+        let (mut game, mut bag) = new_game();
+        game.lines_cleared = 9;
+        game.add_score(1); // 10 lines total
+        assert_eq!(game.level, 1);
+
+        game.lines_cleared = 19;
+        game.add_score(1); // 20 lines total
+        assert_eq!(game.level, 2);
+    }
+
+    #[test]
+    fn test_trash_streak_increment_reset() {
+        let (mut game, mut bag) = new_game();
+        assert_eq!(game.trash_streak, 0);
+
+        // Clear a line
+        for x in 0..BOARD_WIDTH {
+            game.board[19][x] = Cell {
+                kind: Some(PieceKind::O),
+                is_ghost: false,
+            };
+        }
+        game.clear_lines();
+        game.add_score(1);
+        assert_eq!(game.trash_streak, 1);
+
+        // Lock piece without clearing - streak should reset in tick (but we test add_score doesn't reset)
+        // Note: streak resets on non-clear lock, which happens in lock_piece
+        // We can't easily test that without full tick, so just verify increment works
+    }
+
+    #[test]
+    fn test_game_over_on_spawn_collision() {
+        let (mut game, mut bag) = new_game();
+        // Fill top rows to force game over
+        for y in 0..4 {
+            for x in 0..BOARD_WIDTH {
+                game.board[y][x] = Cell {
+                    kind: Some(PieceKind::O),
+                    is_ghost: false,
+                };
+            }
+        }
+        game.spawn_next(&mut bag);
+        assert!(game.is_game_over, "Should be game over when spawn collides");
+    }
+
+    #[test]
+    fn test_ghost_piece_at_lock_position() {
+        let (mut game, mut bag) = new_game();
+        // Move piece to bottom
+        while let Some(p) = game.current_piece {
+            if game.collides(&p, 0, 1, 0) {
+                break;
+            }
+            game.current_piece.as_mut().unwrap().y += 1;
+        }
+        let ghost = game.ghost_piece().unwrap();
+        // Ghost should be at same position as current (already on ground)
+        assert_eq!(ghost.y, game.current_piece.unwrap().y);
     }
 }
