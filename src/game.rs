@@ -1,5 +1,6 @@
 use serde::Serialize;
 use crate::config::*;
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 pub enum PieceKind {
@@ -99,5 +100,44 @@ pub const PIECE_SHAPES: [[[(i8, i8); 4]; 4]; 7] = [
 impl PieceKind {
     pub fn shapes(&self) -> &[[(i8, i8); 4]; 4] {
         &PIECE_SHAPES[*self as usize]
+    }
+}
+
+/// 7-bag randomizer: shuffles all 7 pieces, yields them in order, then reshuffles
+pub struct BagRandomizer {
+    bag: Vec<PieceKind>,
+    rng: StdRng,
+}
+
+impl BagRandomizer {
+    pub fn new() -> Self {
+        let mut bag: Vec<PieceKind> = vec![
+            PieceKind::I, PieceKind::O, PieceKind::T,
+            PieceKind::S, PieceKind::Z, PieceKind::J, PieceKind::L,
+        ];
+        let mut rng = StdRng::from_entropy();
+        bag.shuffle(&mut rng);
+        Self { bag, rng }
+    }
+
+    pub fn next(&mut self) -> PieceKind {
+        if self.bag.is_empty() {
+            self.refill();
+        }
+        self.bag.pop().unwrap()
+    }
+
+    fn refill(&mut self) {
+        self.bag = vec![
+            PieceKind::I, PieceKind::O, PieceKind::T,
+            PieceKind::S, PieceKind::Z, PieceKind::J, PieceKind::L,
+        ];
+        self.bag.shuffle(&mut self.rng);
+    }
+}
+
+impl Default for BagRandomizer {
+    fn default() -> Self {
+        Self::new()
     }
 }
