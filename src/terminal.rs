@@ -104,9 +104,86 @@ impl TerminalRenderer {
         let board_x = (self.term_width.saturating_sub(board_pixel_width)) / 2;
         let board_y = (self.term_height.saturating_sub(BOARD_HEIGHT as u16 + 2)) / 2;
 
+        self.draw_title(state, board_x, board_y);
         self.draw_board(state, board_x, board_y);
+        self.draw_side_panel(state, board_x + board_pixel_width + 2, board_y);
 
         self.end_frame()
+    }
+
+    fn draw_title(&mut self, state: &GameState, board_x: u16, board_y: u16) {
+        let title = "TrashWatch";
+        let score_str = format!("Score: {}", state.score);
+        let title_y = board_y.saturating_sub(2);
+        let title_x = board_x + (20 - title.len() as u16) / 2;
+        queue!(self.stdout, cursor::MoveTo(title_x, title_y), Print(title)).unwrap();
+        let score_x = board_x + 20 + 2;
+        queue!(self.stdout, cursor::MoveTo(score_x, title_y), Print(&score_str)).unwrap();
+    }
+
+    fn draw_side_panel(&mut self, state: &GameState, panel_x: u16, panel_y: u16) {
+        let mut y = panel_y;
+
+        queue!(self.stdout, cursor::MoveTo(panel_x, y), Print("Next:")).unwrap();
+        y += 1;
+        self.draw_next_piece(&state.next_piece, panel_x, y);
+        y += 6;
+
+        queue!(self.stdout, cursor::MoveTo(panel_x, y), Print(format!("Level: {}", state.level))).unwrap();
+        y += 1;
+        queue!(self.stdout, cursor::MoveTo(panel_x, y), Print(format!("Lines: {}", state.lines_cleared))).unwrap();
+        y += 1;
+        queue!(
+            self.stdout,
+            cursor::MoveTo(panel_x, y),
+            SetForegroundColor(Color::AnsiValue(color::TRASH)),
+            Print(format!("Trash: {}", state.trash_streak)),
+            SetForegroundColor(Color::Reset)
+        ).unwrap();
+        y += 2;
+
+        queue!(self.stdout, cursor::MoveTo(panel_x, y), Print("Reactions:")).unwrap();
+        y += 1;
+        queue!(self.stdout, cursor::MoveTo(panel_x, y), Print("🔥 💀 🚀 ✨")).unwrap();
+    }
+
+    fn draw_next_piece(&mut self, piece: &Piece, x: u16, y: u16) {
+        let shapes = &PIECE_SHAPES[piece.kind as usize][piece.rotation as usize];
+        let color = Self::color_for_kind(piece.kind);
+        let min_x = shapes.iter().map(|(px, _)| *px).min().unwrap_or(0);
+        let max_x = shapes.iter().map(|(px, _)| *px).max().unwrap_or(0);
+        let min_y = shapes.iter().map(|(_, py)| *py).min().unwrap_or(0);
+        let max_y = shapes.iter().map(|(_, py)| *py).max().unwrap_or(0);
+        let piece_w = (max_x - min_x + 1) as u16;
+        let piece_h = (max_y - min_y + 1) as u16;
+        let offset_x = (4 - piece_w) / 2;
+        let offset_y = (4 - piece_h) / 2;
+
+        queue!(self.stdout, cursor::MoveTo(x, y), Print("┌────┐")).unwrap();
+        for row in 0..4 {
+            queue!(self.stdout, cursor::MoveTo(x, y + 1 + row), Print("│")).unwrap();
+            for col in 0..4 {
+                let mut is_block = false;
+                for (px, py) in shapes {
+                    if *px - min_x == col as i8 && *py - min_y == row as i8 {
+                        is_block = true;
+                        break;
+                    }
+                }
+                if is_block {
+                    queue!(
+                        self.stdout,
+                        SetForegroundColor(color),
+                        Print(CELL_CHAR),
+                        SetForegroundColor(Color::Reset)
+                    ).unwrap();
+                } else {
+                    queue!(self.stdout, Print(EMPTY_CHAR)).unwrap();
+                }
+            }
+            queue!(self.stdout, Print("│")).unwrap();
+        }
+        queue!(self.stdout, cursor::MoveTo(x, y + 5), Print("└────┘")).unwrap();
     }
 }
 
