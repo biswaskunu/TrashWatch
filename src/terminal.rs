@@ -1,10 +1,18 @@
 use crossterm::{
-    cursor, execute, queue,
+    cursor, event, execute, queue,
     style::{Color, Print, SetForegroundColor},
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::io::{stdout, Write};
+use std::time::Duration;
 use crate::{config::*, game::*};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputAction {
+    Continue,
+    Quit,
+    Restart,
+}
 
 pub struct TerminalRenderer {
     stdout: std::io::Stdout,
@@ -108,7 +116,43 @@ impl TerminalRenderer {
         self.draw_board(state, board_x, board_y);
         self.draw_side_panel(state, board_x + board_pixel_width + 2, board_y);
 
+        if state.is_game_over {
+            self.draw_overlay("GAME OVER", &[
+                &format!("Final Score: {}", state.score),
+                "Press R to restart",
+                "Press Q to quit",
+            ], board_x, board_y, board_pixel_width);
+        } else if state.is_paused {
+            self.draw_overlay("PAUSED", &[
+                "Press P/Esc to resume",
+                "Press Q to quit",
+            ], board_x, board_y, board_pixel_width);
+        } else if state.current_piece.is_none() && state.score == 0 && state.lines_cleared == 0 {
+            self.draw_overlay("TrashWatch", &[
+                "Press any key to start",
+                "",
+                "←/A  Move left    →/D  Move right",
+                "↑/W  Rotate CW     Z    Rotate CCW",
+                "↓/S  Soft drop     Space  Hard drop",
+                "P/Esc  Pause       Q    Quit",
+            ], board_x, board_y, board_pixel_width);
+        }
+
         self.end_frame()
+    }
+
+    fn draw_overlay(&mut self, title: &str, lines: &[&str], board_x: u16, board_y: u16, board_w: u16) {
+        let overlay_w = 36u16;
+        let overlay_h = (lines.len() + 3) as u16;
+        let ox = board_x + (board_w.saturating_sub(overlay_w)) / 2;
+        let oy = board_y + (BOARD_HEIGHT as u16 + 2).saturating_sub(overlay_h) / 2;
+
+        queue!(self.stdout, cursor::MoveTo(ox, oy), Print(&format!("┌{}┐", "─".repeat(overlay_w as usize - 2)))).unwrap();
+        queue!(self.stdout, cursor::MoveTo(ox, oy + 1), Print(&format!("│ {:^width$} │", title, width = overlay_w as usize - 4))).unwrap();
+        for (i, line) in lines.iter().enumerate() {
+            queue!(self.stdout, cursor::MoveTo(ox, oy + 2 + i as u16), Print(&format!("│ {:<width$} │", line, width = overlay_w as usize - 4))).unwrap();
+        }
+        queue!(self.stdout, cursor::MoveTo(ox, oy + overlay_h - 1), Print(&format!("└{}┘", "─".repeat(overlay_w as usize - 2)))).unwrap();
     }
 
     fn draw_title(&mut self, state: &GameState, board_x: u16, board_y: u16) {
@@ -184,6 +228,48 @@ impl TerminalRenderer {
             queue!(self.stdout, Print("│")).unwrap();
         }
         queue!(self.stdout, cursor::MoveTo(x, y + 5), Print("└────┘")).unwrap();
+    }
+
+    pub fn handle_input(&mut self, state: &mut GameState, bag: &mut BagRandomizer) -> anyhow::Result<InputAction> {
+        if event::poll(Duration::from_millis(0))? {
+            if let event::Event::Key(key) = event::read()? {
+                use crossterm::event::{KeyCode, KeyModifiers};
+
+                match (key.code, key.modifiers) {
+                    (KeyCode::Char('q'), _) | (KeyCode::Char('Q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                        return Ok(InputAction::Quit);
+                    }
+                    (KeyCode::Char('r'), _) | (KeyCode::Char('R'), _) if state.is_game_over => {
+                        return Ok(InputAction::Restart);
+                    }
+                    (KeyCode::Left, _) | (KeyCode::Char('a'), _) | (KeyCode::Char('A'), _) => {
+                        state.move_left();
+                    }
+                    (KeyCode::Right, _) | (KeyCode::Char('d'), _) | (KeyCode::Char('D'), _) => {
+                        state.move_right();
+                    }
+                    (KeyCode::Up, _) | (KeyCode::Char('w'), _) | (KeyCode::Char('W'), _) => {
+                        state.rotate_cw();
+                    }
+                    (KeyCode::Char('z'), _) | (KeyCode::Char('Z'), _) => {
+                        state.rotate_ccw();
+                    }
+                    (KeyCode::Down, _) | (KeyCode::Char('s'), _) | (KeyCode::Char('S'), _) => {
+                        state.soft_drop();
+                    }
+                    (KeyCode::Char(' '), _) => {
+                        state.hard_drop();
+                    }
+                    (KeyCode::Char('p'), _) | (KeyCode::Char('P'), _) | (KeyCode::Esc, _) => {
+                        if !state.is_game_over {
+                            state.is_paused = !state.is_paused;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(InputAction::Continue)
     }
 }
 
