@@ -73,18 +73,18 @@
 | FR-SPEC-04 | Spectator join/leave handling | P0 |
 | FR-SPEC-05 | Chat: spectators send messages, broadcast to all | P0 |
 | FR-SPEC-06 | Reactions: 🔥 💀 🚀 ✨ — click → overlay on board (2s TTL) | P0 |
-| FR-SPEC-07 | Serve `spectator.html` at `/` | P0 |
+| FR-SPEC-07 | Serve `spectator.html` at `/` | P0 ✅ |
 
-### 3.4 Browser UI (FR-WEB)
+### 3.4 Browser UI (FR-WEB) ✅ COMPLETE
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FR-WEB-01 | Canvas 300×600 (30px/cell) — board rendering | P0 |
-| FR-WEB-02 | Next piece preview (120×120) | P0 |
-| FR-WEB-03 | Score/Level/Lines/Trash Streak display | P0 |
-| FR-WEB-04 | Chat panel: message list, input, send button | P0 |
-| FR-WEB-05 | Reaction buttons: 4 emoji, click → send WS | P0 |
-| FR-WEB-06 | Auto-connect to `ws://localhost:3000/ws/{room_id}` | P0 |
-| FR-WEB-07 | Room ID from URL param (`?room=uuid`) or auto-generate | P0 |
+| FR-WEB-01 | Canvas 300×600 (30px/cell) — board rendering | P0 ✅ |
+| FR-WEB-02 | Next piece preview (120×120) | P0 ✅ |
+| FR-WEB-03 | Score/Level/Lines/Trash Streak display | P0 ✅ |
+| FR-WEB-04 | Chat panel: message list, input, send button | P0 ✅ |
+| FR-WEB-05 | Reaction buttons: 4 emoji, click → send WS | P0 ✅ |
+| FR-WEB-06 | Auto-connect to `ws://localhost:3000/ws/{room_id}` | P0 ✅ |
+| FR-WEB-07 | Room ID from URL param (`?room=uuid`) or auto-generate | P0 ✅ |
 
 ### 3.5 Server & CLI (FR-SRV)
 | ID | Requirement | Priority |
@@ -100,7 +100,7 @@
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | FR-CF-01 | `deploy/worker.js` — proxy WS to origin server | P1 |
-| FR-CF-02 | Serve static `spectator.html` from Workers Assets | P1 |
+| FR-CF-02 | Serve static `spectator.html` from Workers Assets | P1 (Phase 6) |
 | FR-CF-03 | Config via `ORIGIN` env var (e.g., `wss://trashwatch.fly.dev`) | P1 |
 
 ---

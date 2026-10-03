@@ -4,8 +4,8 @@
 
 ---
 
-> **Status:** Sections 1-2 (Game Logic, Terminal Renderer) are **implemented**.
-> Sections 3-5 (Spectator Protocol, Browser UI, Cloudflare Worker) are **planned** for Phases 3-6.
+> **Status:** Sections 1-4 (Game Logic, Terminal Renderer, Spectator Protocol, Browser UI) are **implemented**.
+> Section 5 (Cloudflare Worker) is **planned** for Phase 6.
 
 ---
 
