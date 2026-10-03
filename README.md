@@ -53,11 +53,12 @@ cargo run -- --spectator
 
 ### Spectator UI
 Open `http://localhost:3000` in browser:
-- Live board canvas
+- Live board canvas (30px cells, 60fps)
 - Next piece preview
-- Score/Level/Lines/Trash Streak
-- Chat panel
-- Reaction buttons: 🔥 💀 🚀 ✨
+- Score/Level/Lines/Trash Streak HUD
+- Chat panel (send/receive, message history)
+- Reaction buttons: 🔥 💀 🚀 ✨ (float+fade animation)
+- Auto-reconnect on connection loss
 
 ---
 
@@ -73,7 +74,7 @@ TrashWatch/
 │   ├── spectator.rs     # WebSocket handler, room, broadcast
 │   ├── protocol.rs      # WS message types (serde)
 │   └── config.rs        # Constants
-├── spectator.html       # Browser UI (served statically, Phase 5 for full canvas UI)
+├── spectator.html       # Browser UI (served statically, Phase 5 complete)
 ├── deploy/
 │   └── worker.js        # Cloudflare Workers proxy (Phase 6)
 └── docs/                # All documentation
@@ -84,7 +85,7 @@ TrashWatch/
 ## Tech Stack
 
 - **Rust (current)** — Axum, Tokio, Tungstenite, Crossterm, Serde, Anyhow, Thiserror, Clap, Rand, UUID, `open`, `tower-http`
-- **Browser (planned)** — Vanilla JS, Canvas 2D, WebSocket (Phase 5)
+- **Browser (current)** — Vanilla JS, Canvas 2D, WebSocket (Phase 5 complete)
 - **Deploy (planned)** — Cloudflare Workers (proxy), Fly.io/Render (origin) (Phase 6)
 
 ---

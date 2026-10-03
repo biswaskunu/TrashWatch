@@ -63,18 +63,18 @@
 
 ---
 
-## Phase 5: Browser UI (2-3 hrs)
-- [ ] `spectator.html` — single file, vanilla JS
-- [ ] Canvas board rendering (30px cells)
-- [ ] Piece rendering with colors matching terminal
-- [ ] Ghost piece rendering
-- [ ] Next piece preview
-- [ ] HUD display
-- [ ] Chat panel (send/receive)
-- [ ] Reaction buttons (4 emoji)
-- [ ] Reaction animation (float + fade)
-- [ ] Room ID from URL or auto-generate
-- [ ] Auto-reconnect on WS close
+## Phase 5: Browser UI (2-3 hrs) ✅ COMPLETE
+- [x] `spectator.html` — single file, vanilla JS (ES6 modules)
+- [x] Canvas board rendering (30px cells, 300×600px)
+- [x] Piece rendering with colors matching terminal (ANSI 256 → hex)
+- [x] Ghost piece rendering (dimmed, 50% alpha)
+- [x] Next piece preview (120×120px canvas, centered)
+- [x] HUD display (Score, Level, Lines, Trash Streak)
+- [x] Chat panel (send/receive, own msg highlighting, 100 msg limit)
+- [x] Reaction buttons (4 emoji: 🔥 💀 🚀 ✨)
+- [x] Reaction animation (float + fade, 2s TTL)
+- [x] Room ID from URL or auto-generate UUID
+- [x] Auto-reconnect on WS close (exponential backoff + jitter)
 
 ---
 
