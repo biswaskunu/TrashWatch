@@ -30,6 +30,12 @@ cargo run
 
 # Opens terminal game; prints Room ID and spectator URL:
 #   Spectators: http://localhost:3000/?room=<uuid>
+
+# Run with custom port
+cargo run -- --port 8080
+
+# Run and auto-open spectator in browser
+cargo run -- --spectator
 ```
 
 ### Controls (Terminal)
@@ -67,7 +73,7 @@ TrashWatch/
 │   ├── spectator.rs     # WebSocket handler, room, broadcast
 │   ├── protocol.rs      # WS message types (serde)
 │   └── config.rs        # Constants
-├── spectator.html       # Browser UI (vanilla JS, Canvas) (Phase 5)
+├── spectator.html       # Browser UI (served statically, Phase 5 for full canvas UI)
 ├── deploy/
 │   └── worker.js        # Cloudflare Workers proxy (Phase 6)
 └── docs/                # All documentation
@@ -77,7 +83,7 @@ TrashWatch/
 
 ## Tech Stack
 
-- **Rust (current)** — Axum, Tokio, Tungstenite, Crossterm, Serde, Anyhow, Thiserror, Clap, Rand, UUID
+- **Rust (current)** — Axum, Tokio, Tungstenite, Crossterm, Serde, Anyhow, Thiserror, Clap, Rand, UUID, `open`, `tower-http`
 - **Browser (planned)** — Vanilla JS, Canvas 2D, WebSocket (Phase 5)
 - **Deploy (planned)** — Cloudflare Workers (proxy), Fly.io/Render (origin) (Phase 6)
 

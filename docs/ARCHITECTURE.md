@@ -56,24 +56,27 @@ src/
 
 ## 3. Data Flow
 
-### 3.1 Game Tick (60Hz)
+### 3.1 Game Tick (60Hz) — Spawned Task
 ```
-GameLoop.tick(bag: &mut BagRandomizer)
+GameLoopTask (spawned tokio task, interval TICK_MS)
     │
-    ├─► GameState.tick(dt_ms, bag)          // gravity, lock delay, spawn
-    │       │
-    │       ├─► if current_piece.is_none() → spawn_next(bag)
-    │       ├─► Lock delay checked every tick:
-    │       │       if on_ground: lock_delay_ms += dt_ms
-    │       │       if lock_delay >= 500ms OR lock_resets >= 15 → lock_piece()
-    │       ├─► Gravity accumulator (gravity_accum):
-    │       │       gravity_accum += dt_ms
-    │       │       while gravity_accum >= ms_per_cell:
-    │       │           if can_fall: piece.y += 1, lock_delay = 0
-    │       │           else if try_lock(): break
-    │       │           gravity_accum -= ms_per_cell
-    │       └─► Uses GRAVITY_TABLE[level] for ms_per_cell
+    ├─► shutdown.notified() → break loop (graceful shutdown)
+    ├─► sleep(TICK_MS)
     │
+    └─► GameState.tick(dt_ms, bag)          // gravity, lock delay, spawn
+          │
+          ├─► if current_piece.is_none() → spawn_next(bag)
+          ├─► Lock delay checked every tick:
+          │       if on_ground: lock_delay_ms += dt_ms
+          │       if lock_delay >= 500ms OR lock_resets >= 15 → lock_piece()
+          ├─► Gravity accumulator (gravity_accum):
+          │       gravity_accum += dt_ms
+          │       while gravity_accum >= ms_per_cell:
+          │           if can_fall: piece.y += 1, lock_delay = 0
+          │           else if try_lock(): break
+          │           gravity_accum -= ms_per_cell
+          └─► Uses GRAVITY_TABLE[level] for ms_per_cell
+
     ├─► lock_piece() → clear_lines() → add_score() → spawn_next(bag)
     │
     └─► if game_over → broadcast final state, stop loop
@@ -124,24 +127,25 @@ WS.on_message(msg)
 |-----------|----------------------|-----------|
 | Room Registry | `Arc<Mutex<Option<Room>>>` | Single room, lazy init |
 | Room State | `Arc<Mutex<GameState>>` + `Arc<Mutex<BagRandomizer>>` | Shared main thread + Tokio tasks |
-| Game Loop | Dedicated Tokio task per room | Deterministic 60Hz, no blocking |
+| Game Loop | Dedicated Tokio task (spawned) | Deterministic 60Hz, shutdown via Notify |
 | Broadcast | Dedicated Tokio task (global) | Decoupled from game tick |
 | WS Connections | One task per connection | Backpressure via bounded channel |
-| Terminal | Single task (blocking crossterm) | Crossterm not async-friendly |
+| Terminal | Main thread (blocking crossterm) | Crossterm not async-friendly |
 
 ---
 
-### Concurrency Note: Terminal on Main Thread
+### Concurrency Note: Terminal on Main Thread, Game Loop Spawned
 
-In the current implementation, the terminal game loop runs on the main thread (blocking) while Axum HTTP/WebSocket server and the broadcast task run on the Tokio runtime. The `Room` state (GameState, BagRandomizer, spectators, reactions) is shared via `Arc<Mutex<>>` between:
+In the current implementation, the **terminal renderer and input handling run on the main thread** (blocking crossterm), while the **game loop runs in a dedicated Tokio task at 60Hz**, and the Axum HTTP/WebSocket server + broadcast task run on the Tokio runtime. The `Room` state (GameState, BagRandomizer, spectators, reactions) is shared via `Arc<Mutex<>>` between:
 
-- **Main thread**: Terminal renderer + game tick (60Hz) - locks `game` and `bag` mutexes each frame
+- **Main thread**: Terminal renderer + input handling - locks `game` and `bag` mutexes each frame for drawing and input
 - **Tokio tasks**: 
+  - Game loop task (60Hz) - locks `game` and `bag` for tick (gravity, lock delay, spawn)
   - Broadcast task (10Hz) - locks `game` for snapshot, `spectators`/`reactions` for broadcast
   - WS connection tasks - lock `spectators` for join/leave, `reactions` for new reactions
   - Axum server - minimal locking
 
-This design avoids the complexity of running crossterm in an async context while keeping the game logic deterministic. The mutex contention is minimal since locks are held for very short durations (microseconds per frame).
+This design avoids the complexity of running crossterm in an async context while keeping the game logic deterministic in a dedicated task. The mutex contention is minimal since locks are held for very short durations (microseconds per frame). Graceful shutdown is handled via `tokio::sync::Notify` to signal the game loop task to exit.
 
 ## 5. State Management
 

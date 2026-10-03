@@ -73,7 +73,11 @@ async fn main() -> anyhow::Result<()> {
 
     let shutdown = Arc::new(tokio::sync::Notify::new());
     let game_shutdown = shutdown.clone();
-    let game_handle = tokio::spawn(game_loop_task(game_arc.clone(), bag_arc.clone(), game_shutdown));
+    let game_handle = tokio::spawn(game_loop_task(
+        game_arc.clone(),
+        bag_arc.clone(),
+        game_shutdown,
+    ));
 
     let app = Router::new()
         .route("/ws/:room_id", get(ws_handler))

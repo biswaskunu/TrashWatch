@@ -52,14 +52,14 @@
 
 ---
 
-## Phase 4: Main Integration (1-2 hrs)
-- [ ] CLI args (`clap`: `--spectator`, `--port`)
-- [ ] Axum router: `GET /`, `GET /ws/:room_id`
-- [ ] Static file serving for `spectator.html`
-- [ ] Game loop task (60Hz) per room
-- [ ] Terminal mode: spawn renderer + input loop
-- [ ] `--spectator`: open browser via `open` crate
-- [ ] Graceful shutdown (Ctrl+C)
+## Phase 4: Main Integration (1-2 hrs) ✅ COMPLETE
+- [x] CLI args (`clap`: `--spectator`, `--port`)
+- [x] Axum router: `GET /ws/:room_id` + static file serving
+- [x] Static file serving for `spectator.html` (via `ServeDir`)
+- [x] Game loop task (60Hz) per room (spawned task with shutdown notify)
+- [x] Terminal mode: renderer + input loop in main thread
+- [x] `--spectator`: open browser via `open` crate
+- [x] Graceful shutdown (Ctrl+C signal handler)
 
 ---
 
