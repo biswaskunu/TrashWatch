@@ -24,6 +24,29 @@ struct Args {
 
 type RoomRegistry = Arc<Mutex<Option<Room>>>;
 
+async fn game_loop_task(
+    game_arc: Arc<Mutex<GameState>>,
+    bag_arc: Arc<Mutex<BagRandomizer>>,
+    shutdown: Arc<tokio::sync::Notify>,
+) {
+    let mut last_tick = Instant::now();
+    loop {
+        tokio::select! {
+            _ = shutdown.notified() => break,
+            _ = tokio::time::sleep(Duration::from_millis(TICK_MS as u64)) => {
+                let now = Instant::now();
+                let dt_ms = now.duration_since(last_tick).as_millis() as u32;
+                if dt_ms >= TICK_MS {
+                    let mut state = game_arc.lock().await;
+                    let mut bag = bag_arc.lock().await;
+                    state.tick(dt_ms, &mut bag);
+                    last_tick = now;
+                }
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
@@ -42,6 +65,16 @@ async fn main() -> anyhow::Result<()> {
         broadcast_task(broadcast_registry).await;
     });
 
+    let (game_arc, bag_arc) = {
+        let reg = registry.lock().await;
+        let room = reg.as_ref().unwrap();
+        (room.game.clone(), room.bag.clone())
+    };
+
+    let shutdown = Arc::new(tokio::sync::Notify::new());
+    let game_shutdown = shutdown.clone();
+    let game_handle = tokio::spawn(game_loop_task(game_arc.clone(), bag_arc.clone(), game_shutdown));
+
     let app = Router::new()
         .route("/ws/:room_id", get(ws_handler))
         .nest_service("/", ServeDir::new("."))
@@ -54,14 +87,17 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    let (game_arc, bag_arc) = {
-        let reg = registry.lock().await;
-        let room = reg.as_ref().unwrap();
-        (room.game.clone(), room.bag.clone())
-    };
+    if args.spectator {
+        let url = format!("http://localhost:{}/?room={}", args.port, room_id);
+        if let Err(e) = open::that(&url) {
+            eprintln!("Failed to open browser: {}", e);
+        }
+    }
 
     let mut renderer = TerminalRenderer::new()?;
-    let mut last_tick = Instant::now();
+
+    let ctrl_c = tokio::signal::ctrl_c();
+    tokio::pin!(ctrl_c);
 
     loop {
         let mut state = game_arc.lock().await;
@@ -72,16 +108,8 @@ async fn main() -> anyhow::Result<()> {
             InputAction::Restart => {
                 *state = GameState::new();
                 *bag = BagRandomizer::new();
-                last_tick = Instant::now();
             }
             InputAction::Continue => {}
-        }
-
-        let now = Instant::now();
-        let dt_ms = now.duration_since(last_tick).as_millis() as u32;
-        if dt_ms >= TICK_MS {
-            state.tick(dt_ms, &mut bag);
-            last_tick = now;
         }
 
         drop(state);
@@ -91,9 +119,18 @@ async fn main() -> anyhow::Result<()> {
         renderer.draw(&state)?;
         drop(state);
 
-        std::thread::sleep(Duration::from_millis(1));
+        tokio::select! {
+            _ = &mut ctrl_c => {
+                println!("\nShutting down...");
+                break;
+            }
+            _ = tokio::time::sleep(Duration::from_millis(1)) => {}
+        }
     }
 
+    shutdown.notify_waiters();
+    game_handle.abort();
     server_handle.abort();
+
     Ok(())
 }
