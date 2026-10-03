@@ -5,48 +5,21 @@ mod spectator;
 mod terminal;
 
 use crate::{config::*, game::*, spectator::*, terminal::*};
-use axum::{response::Html, routing::get, serve, Router};
+use axum::{routing::get, serve, Router};
 use clap::Parser;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
+use tower_http::services::ServeDir;
 
 #[derive(Parser)]
 #[command(name = "trashwatch")]
 struct Args {
     #[arg(short, long, default_value = "3000")]
     port: u16,
-}
-
-const SPECTATOR_HTML: &str = r#"<!DOCTYPE html>
-<html>
-<head>
-    <title>TrashWatch Spectator</title>
-    <style>
-        body { font-family: monospace; background: #1a1a1a; color: #fff; padding: 20px; }
-        #status { color: #4CAF50; }
-        #log { background: #000; padding: 10px; height: 400px; overflow-y: auto; white-space: pre-wrap; }
-    </style>
-</head>
-<body>
-    <h1>TrashWatch Spectator</h1>
-    <p id="status">Connecting...</p>
-    <pre id="log"></pre>
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room') || prompt('Room ID:');
-        if (!roomId) { document.getElementById('status').textContent = 'No room ID provided'; }
-        const ws = new WebSocket(`ws://${location.host}/ws/${roomId}`);
-        ws.onopen = () => { document.getElementById('status').textContent = 'Connected to ' + roomId; };
-        ws.onmessage = (e) => { document.getElementById('log').textContent = e.data + '\n' + document.getElementById('log').textContent; };
-        ws.onclose = () => { document.getElementById('status').textContent = 'Disconnected'; };
-    </script>
-</body>
-</html>"#;
-
-async fn serve_spectator_html() -> Html<&'static str> {
-    Html(SPECTATOR_HTML)
+    #[arg(long)]
+    spectator: bool,
 }
 
 type RoomRegistry = Arc<Mutex<Option<Room>>>;
@@ -70,8 +43,8 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let app = Router::new()
-        .route("/", get(serve_spectator_html))
         .route("/ws/:room_id", get(ws_handler))
+        .nest_service("/", ServeDir::new("."))
         .with_state(registry.clone());
 
     let listener = TcpListener::bind(("0.0.0.0", args.port)).await?;

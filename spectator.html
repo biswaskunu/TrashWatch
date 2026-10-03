@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TrashWatch Spectator</title>
+    <style>
+        body { font-family: monospace; background: #1a1a1a; color: #fff; padding: 20px; }
+        #status { color: #4CAF50; }
+        #log { background: #000; padding: 10px; height: 400px; overflow-y: auto; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>TrashWatch Spectator</h1>
+    <p id="status">Connecting...</p>
+    <pre id="log"></pre>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room') || prompt('Room ID:');
+        if (!roomId) { document.getElementById('status').textContent = 'No room ID provided'; }
+        const ws = new WebSocket(`ws://${location.host}/ws/${roomId}`);
+        ws.onopen = () => { document.getElementById('status').textContent = 'Connected to ' + roomId; };
+        ws.onmessage = (e) => { document.getElementById('log').textContent = e.data + '\n' + document.getElementById('log').textContent; };
+        ws.onclose = () => { document.getElementById('status').textContent = 'Disconnected'; };
+    </script>
+</body>
+</html>
