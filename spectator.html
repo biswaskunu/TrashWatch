@@ -1,25 +1,551 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>TrashWatch Spectator</title>
-    <style>
-        body { font-family: monospace; background: #1a1a1a; color: #fff; padding: 20px; }
-        #status { color: #4CAF50; }
-        #log { background: #000; padding: 10px; height: 400px; overflow-y: auto; white-space: pre-wrap; }
-    </style>
+  <meta charset="UTF-8">
+  <title>TrashWatch Spectator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #1a1a1a;
+      --panel: #242424;
+      --border: #3a3a3a;
+      --text: #ffffff;
+      --text-dim: #aaaaaa;
+      --trash: #87ff00;
+    }
+    body {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Monospace';
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    header h1 { font-size: 1.25rem; font-weight: 600; }
+    .room-info { color: var(--text-dim); font-size: 0.875rem; }
+    .room-info code { background: var(--bg); padding: 2px 6px; border-radius: 4px; }
+    #copy-url { font-size: 0.75rem; padding: 4px 10px; background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 4px; cursor: pointer; }
+    #copy-url:hover { background: var(--border); }
+    main { flex: 1; display: grid; grid-template-columns: 302px 1fr; gap: 16px; padding: 16px; max-width: 1000px; width: 100%; margin: 0 auto; }
+    #board-area { display: flex; flex-direction: column; align-items: center; }
+    #board { background: #0d0d0d; border: 2px solid #585858; border-radius: 4px; display: block; }
+    #side-panel { display: flex; flex-direction: column; gap: 16px; min-width: 220px; max-width: 280px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .panel-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 12px; }
+    #hud { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+    .hud-item { display: flex; flex-direction: column; }
+    .hud-label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+    .hud-value { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    #trash-streak .hud-value { color: var(--trash); }
+    #next-piece { text-align: center; }
+    #next-piece .panel-title { text-align: center; margin-bottom: 8px; }
+    #next { background: #0d0d0d; border: 1px solid var(--border); border-radius: 4px; display: inline-block; }
+    #reactions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .reaction-btn { font-size: 1.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; cursor: pointer; transition: transform 0.1s, border-color 0.1s; line-height: 1; }
+    .reaction-btn:hover { transform: scale(1.1); border-color: var(--text); }
+    .reaction-btn:active { transform: scale(0.95); }
+    .reaction-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    #chat { display: flex; flex-direction: column; gap: 8px; min-height: 200px; }
+    #chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; max-height: 200px; }
+    .chat-msg { font-size: 0.8rem; line-height: 1.4; padding: 6px 8px; background: var(--bg); border-radius: 6px; border: 1px solid var(--border); animation: slideIn 0.2s ease-out; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .chat-msg .msg-from { font-weight: 600; color: var(--trash); }
+    .chat-msg .msg-text { margin-left: 6px; }
+    .chat-msg.own .msg-from { color: #00ffff; }
+    #chat-input { display: flex; gap: 8px; }
+    #chat-input input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; color: var(--text); font-family: inherit; font-size: 0.8rem; }
+    #chat-input input:focus { outline: none; border-color: var(--trash); }
+    #chat-input button { background: var(--trash); color: var(--bg); border: none; border-radius: 4px; padding: 0 16px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    #chat-input button:hover { filter: brightness(1.1); }
+    #status-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--border); padding: 10px 20px; border-radius: 8px; font-size: 0.8rem; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 100; }
+    #status-toast.show { opacity: 1; }
+    @media (max-width: 768px) {
+      main { grid-template-columns: 1fr; padding: 12px; }
+      #side-panel { flex-direction: row; flex-wrap: wrap; max-width: none; }
+      #side-panel > .panel { flex: 1; min-width: 200px; }
+      #chat { order: 3; min-height: 150px; }
+    }
+  </style>
 </head>
 <body>
-    <h1>TrashWatch Spectator</h1>
-    <p id="status">Connecting...</p>
-    <pre id="log"></pre>
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room') || prompt('Room ID:');
-        if (!roomId) { document.getElementById('status').textContent = 'No room ID provided'; }
-        const ws = new WebSocket(`ws://${location.host}/ws/${roomId}`);
-        ws.onopen = () => { document.getElementById('status').textContent = 'Connected to ' + roomId; };
-        ws.onmessage = (e) => { document.getElementById('log').textContent = e.data + '\n' + document.getElementById('log').textContent; };
-        ws.onclose = () => { document.getElementById('status').textContent = 'Disconnected'; };
-    </script>
+  <header>
+    <h1>TrashWatch</h1>
+    <div class="room-info">Room: <code id="room-id">—</code></div>
+    <button id="copy-url" title="Copy spectator URL">🔗 Copy URL</button>
+  </header>
+  <main>
+    <section id="board-area">
+      <canvas id="board" width="302" height="602"></canvas>
+    </section>
+    <aside id="side-panel">
+      <div class="panel" id="hud">
+        <div class="panel-title">Stats</div>
+        <div class="hud-item"><span class="hud-label">Score</span><span class="hud-value" id="hud-score">0</span></div>
+        <div class="hud-item"><span class="hud-label">Level</span><span class="hud-value" id="hud-level">1</span></div>
+        <div class="hud-item"><span class="hud-label">Lines</span><span class="hud-value" id="hud-lines">0</span></div>
+        <div class="hud-item" id="trash-streak"><span class="hud-label">Trash</span><span class="hud-value" id="hud-trash">0</span></div>
+      </div>
+      <div class="panel" id="next-piece">
+        <div class="panel-title">Next Piece</div>
+        <canvas id="next" width="122" height="122"></canvas>
+      </div>
+      <div class="panel" id="reactions">
+        <div class="panel-title">Reactions</div>
+        <button class="reaction-btn" data-emoji="🔥" title="Fire">🔥</button>
+        <button class="reaction-btn" data-emoji="💀" title="Skull">💀</button>
+        <button class="reaction-btn" data-emoji="🚀" title="Rocket">🚀</button>
+        <button class="reaction-btn" data-emoji="✨" title="Sparkles">✨</button>
+      </div>
+      <div class="panel" id="chat">
+        <div class="panel-title">Chat</div>
+        <div id="chat-messages"></div>
+        <div id="chat-input">
+          <input type="text" id="chat-text" placeholder="Type a message..." maxlength="200">
+          <button id="chat-send">Send</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+  <div id="status-toast"></div>
+  <script type="module">
+    // ============================================
+    // CONSTANTS — match src/config.rs exactly
+    // ============================================
+    const COLORS = {
+      I: '#00ffff',  // 51 cyan
+      O: '#ffff00',  // 226 yellow
+      T: '#ff00ff',  // 201 magenta
+      S: '#00ff00',  // 46 green
+      Z: '#ff0000',  // 196 red
+      J: '#0087ff',  // 33 blue
+      L: '#ff8700',  // 208 orange
+      GHOST: '#8a8a8a80', // 244 ghost with 50% alpha
+      BORDER: '#585858',  // 240
+      BG: '#0d0d0d',
+      TEXT: '#ffffff',
+      TRASH: '#87ff00',   // 118
+    };
+    const CELL_SIZE = 30;
+    const BOARD_W = 10;
+    const BOARD_H = 20;
+    const BOARD_PX_W = BOARD_W * CELL_SIZE;
+    const BOARD_PX_H = BOARD_H * CELL_SIZE;
+    const REACTION_EMOJIS = ['🔥', '💀', '🚀', '✨'];
+    const REACTION_TTL = 2000; // ms
+
+    // Piece shapes from game.rs PIECE_SHAPES
+    const PIECE_SHAPES = {
+      I: [[[0,0],[1,0],[2,0],[3,0]], [[2,0],[2,1],[2,2],[2,3]], [[0,0],[1,0],[2,0],[3,0]], [[2,0],[2,1],[2,2],[2,3]]],
+      O: [[[0,0],[1,0],[0,1],[1,1]], [[0,0],[1,0],[0,1],[1,1]], [[0,0],[1,0],[0,1],[1,1]], [[0,0],[1,0],[0,1],[1,1]]],
+      T: [[[0,0],[1,0],[2,0],[1,1]], [[1,0],[1,1],[1,2],[0,1]], [[0,1],[1,1],[2,1],[1,0]], [[1,0],[0,1],[1,1],[1,2]]],
+      S: [[[1,0],[2,0],[0,1],[1,1]], [[1,0],[1,1],[2,1],[2,2]], [[1,0],[2,0],[0,1],[1,1]], [[1,0],[1,1],[2,1],[2,2]]],
+      Z: [[[0,0],[1,0],[1,1],[2,1]], [[2,0],[1,1],[2,1],[1,2]], [[0,0],[1,0],[1,1],[2,1]], [[2,0],[1,1],[2,1],[1,2]]],
+      J: [[[0,0],[0,1],[1,1],[2,1]], [[1,0],[2,0],[1,1],[1,2]], [[0,0],[1,0],[2,0],[2,1]], [[1,0],[1,1],[0,2],[1,2]]],
+      L: [[[0,0],[0,1],[1,1],[2,1]], [[1,0],[2,0],[1,1],[1,2]], [[0,0],[1,0],[2,0],[2,1]], [[1,0],[1,1],[0,2],[1,2]]], // Fixed L shapes
+    };
+    // Fix L shapes - from game.rs
+    PIECE_SHAPES.L = [
+      [[0,0],[0,1],[1,1],[2,1]],  // 0°
+      [[1,0],[2,0],[1,1],[1,2]],  // 90°
+      [[0,0],[1,0],[2,0],[2,1]],  // 180°
+      [[1,0],[1,1],[0,2],[1,2]]   // 270°
+    ];
+
+    const PIECE_KINDS = ['I','O','T','S','Z','J','L'];
+
+    // ============================================
+    // UTILITIES
+    // ============================================
+    function $(sel, root=document) { return root.querySelector(sel); }
+    function $$(sel, root=document) { return [...root.querySelectorAll(sel)]; }
+    function uuid() { return crypto.randomUUID(); }
+    function showToast(msg) {
+      const t = $('#status-toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(() => showToast('URL copied!'));
+    }
+
+    // ============================================
+    // CANVAS RENDERER
+    // ============================================
+    class CanvasRenderer {
+      constructor() {
+        this.boardCanvas = $('#board');
+        this.boardCtx = this.boardCanvas.getContext('2d');
+        this.nextCanvas = $('#next');
+        this.nextCtx = this.nextCanvas.getContext('2d');
+        this.animFrame = null;
+        this.snapshot = null;
+        this.reactions = new Set(); // {emoji, x, y, startTime}
+      }
+
+      setSnapshot(snapshot) {
+        this.snapshot = snapshot;
+      }
+
+      addReaction(emoji, normX, normY) {
+        const reaction = {
+          emoji,
+          x: normX * BOARD_PX_W,
+          y: normY * BOARD_PX_H,
+          start: performance.now()
+        };
+        this.reactions.add(reaction);
+      }
+
+      start() {
+        const loop = (now) => {
+          this.draw(now);
+          this.animFrame = requestAnimationFrame(loop);
+        };
+        this.animFrame = requestAnimationFrame(loop);
+      }
+
+      stop() {
+        if (this.animFrame) cancelAnimationFrame(this.animFrame);
+      }
+
+      draw(now) {
+        this.drawBoard();
+        this.drawNextPiece();
+        this.drawHUD();
+        this.drawReactions(now);
+      }
+
+      drawBoard() {
+        const ctx = this.boardCtx;
+        ctx.clearRect(0, 0, BOARD_PX_W + 2, BOARD_PX_H + 2);
+
+        if (!this.snapshot) return;
+
+        // Draw border
+        ctx.strokeStyle = COLORS.BORDER;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, BOARD_PX_W + 2, BOARD_PX_H + 2);
+
+        // Draw locked board cells
+        for (let y = 0; y < BOARD_H; y++) {
+          for (let x = 0; x < BOARD_W; x++) {
+            const cell = this.snapshot.board[y][x];
+            if (cell.kind !== null && cell.kind !== undefined) {
+              this.drawCell(ctx, x, y, cell.kind, false);
+            }
+          }
+        }
+
+        // Draw ghost piece
+        if (this.snapshot.current_piece) {
+          const ghost = this.computeGhost();
+          if (ghost) {
+            for (const [gx, gy] of ghost) {
+              if (gy >= 0 && gy < BOARD_H && gx >= 0 && gx < BOARD_W) {
+                this.drawCell(ctx, gx, gy, this.snapshot.current_piece.kind, true);
+              }
+            }
+          }
+        }
+
+        // Draw current piece
+        if (this.snapshot.current_piece) {
+          const p = this.snapshot.current_piece;
+          for (const [px, py] of p.cells) {
+            if (py >= 0 && py < BOARD_H && px >= 0 && px < BOARD_W) {
+              this.drawCell(ctx, px, py, p.kind, false);
+            }
+          }
+        }
+      }
+
+      computeGhost() {
+        const p = this.snapshot.current_piece;
+        if (!p) return null;
+        // Find lowest valid position
+        let ghostY = p.y;
+        while (true) {
+          let valid = true;
+          for (const [px, py] of p.cells) {
+            const ny = ghostY + py - p.y + 1;
+            const nx = p.x + px - p.x;
+            if (ny >= BOARD_H) { valid = false; break; }
+            if (ny >= 0 && this.snapshot.board[ny][nx].kind !== null) { valid = false; break; }
+          }
+          if (!valid) break;
+          ghostY++;
+        }
+        if (ghostY === p.y) return null;
+        const cells = [];
+        for (const [px, py] of p.cells) {
+          cells.push([p.x + px - p.x, ghostY + py - p.y]);
+        }
+        return cells;
+      }
+
+      drawCell(ctx, x, y, kind, isGhost) {
+        const color = isGhost ? COLORS.GHOST : COLORS[kind];
+        const px = 1 + x * CELL_SIZE;
+        const py = 1 + y * CELL_SIZE;
+        const padding = 1;
+        ctx.fillStyle = color;
+        ctx.fillRect(px + padding, py + padding, CELL_SIZE - 2 * padding, CELL_SIZE - 2 * padding);
+        // Subtle highlight for 3D effect
+        if (!isGhost) {
+          ctx.fillStyle = 'rgba(255,255,255,0.15)';
+          ctx.fillRect(px + padding, py + padding, CELL_SIZE - 2 * padding, 3);
+          ctx.fillRect(px + padding, py + padding, 3, CELL_SIZE - 2 * padding);
+        }
+      }
+
+      drawNextPiece() {
+        const ctx = this.nextCtx;
+        ctx.clearRect(0, 0, 122, 122);
+        ctx.strokeStyle = COLORS.BORDER;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, 0, 122, 122);
+
+        if (!this.snapshot) return;
+        const np = this.snapshot.next_piece;
+        const shapes = PIECE_SHAPES[np.kind][np.rotation];
+        const color = COLORS[np.kind];
+
+        // Center in 4x4 preview area (120x120 = 4*30)
+        const minX = Math.min(...shapes.map(([x]) => x));
+        const maxX = Math.max(...shapes.map(([x]) => x));
+        const minY = Math.min(...shapes.map(([,y]) => y));
+        const maxY = Math.max(...shapes.map(([,y]) => y));
+        const pieceW = maxX - minX + 1;
+        const pieceH = maxY - minY + 1;
+        const offsetX = (4 - pieceW) / 2;
+        const offsetY = (4 - pieceH) / 2;
+
+        for (const [px, py] of shapes) {
+          const cx = 1 + (offsetX + px - minX) * CELL_SIZE;
+          const cy = 1 + (offsetY + py - minY) * CELL_SIZE;
+          ctx.fillStyle = color;
+          ctx.fillRect(cx + 1, cy + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.15)';
+          ctx.fillRect(cx + 1, cy + 1, CELL_SIZE - 2, 3);
+          ctx.fillRect(cx + 1, cy + 1, 3, CELL_SIZE - 2);
+        }
+      }
+
+      drawHUD() {
+        if (!this.snapshot) return;
+        $('#hud-score').textContent = this.snapshot.score.toLocaleString();
+        $('#hud-level').textContent = this.snapshot.level;
+        $('#hud-lines').textContent = this.snapshot.lines_cleared;
+        $('#hud-trash').textContent = this.snapshot.trash_streak;
+      }
+
+      drawReactions(now) {
+        if (this.reactions.size === 0) return;
+        const ctx = this.boardCtx;
+        ctx.font = '28px "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        for (const r of this.reactions) {
+          const elapsed = now - r.start;
+          if (elapsed >= REACTION_TTL) {
+            this.reactions.delete(r);
+            continue;
+          }
+          const progress = elapsed / REACTION_TTL;
+          const y = r.y - progress * 60;
+          const opacity = 1 - progress;
+          ctx.globalAlpha = opacity;
+          ctx.fillText(r.emoji, r.x + BOARD_PX_W / 2 + 1, y + 1);
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+
+    // ============================================
+    // WEBSOCKET MANAGER
+    // ============================================
+    class WebSocketManager {
+      constructor(roomId, handlers) {
+        this.roomId = roomId;
+        this.handlers = handlers;
+        this.ws = null;
+        this.reconnectDelay = 1000;
+        this.maxReconnectDelay = 30000;
+        this.reconnectAttempts = 0;
+        this.connect();
+      }
+
+      connect() {
+        this.ws = new WebSocket(`ws://${location.host}/ws/${this.roomId}`);
+        this.ws.onopen = () => {
+          this.reconnectDelay = 1000;
+          this.reconnectAttempts = 0;
+          showToast('Connected');
+        };
+        this.ws.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            this.handleMessage(msg);
+          } catch (err) {
+            console.error('WS parse error:', err);
+          }
+        };
+        this.ws.onclose = () => {
+          showToast('Disconnected — reconnecting...');
+          this.scheduleReconnect();
+        };
+        this.ws.onerror = (err) => {
+          console.error('WS error:', err);
+        };
+      }
+
+      handleMessage(msg) {
+        switch (msg.type) {
+          case 'state':
+            this.handlers.onState(msg);
+            break;
+          case 'chat':
+            this.handlers.onChat(msg);
+            break;
+          case 'reaction':
+            this.handlers.onReaction(msg);
+            break;
+          case 'welcome':
+            this.handlers.onWelcome(msg);
+            break;
+        }
+      }
+
+      scheduleReconnect() {
+        const delay = this.reconnectDelay + Math.random() * 500;
+        this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, this.maxReconnectDelay);
+        this.reconnectAttempts++;
+        setTimeout(() => this.connect(), delay);
+      }
+
+      send(msg) {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify(msg));
+        }
+      }
+
+      sendChat(text) {
+        this.send({ type: 'chat', text });
+      }
+
+      sendReaction(emoji) {
+        this.send({ type: 'reaction', emoji });
+      }
+
+      close() {
+        this.ws?.close();
+      }
+    }
+
+    // ============================================
+    // CHAT PANEL
+    // ============================================
+    class ChatPanel {
+      constructor(wsManager, myId) {
+        this.wsManager = wsManager;
+        this.myId = myId;
+        this.messages = $('#chat-messages');
+        this.input = $('#chat-text');
+        this.sendBtn = $('#chat-send');
+
+        this.sendBtn.addEventListener('click', () => this.send());
+        this.input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            this.send();
+          }
+        });
+      }
+
+      send() {
+        const text = this.input.value.trim();
+        if (!text) return;
+        this.wsManager.sendChat(text);
+        this.input.value = '';
+      }
+
+      addMessage(from, text, isOwn = false) {
+        const div = document.createElement('div');
+        div.className = `chat-msg${isOwn ? ' own' : ''}`;
+        div.innerHTML = `<span class="msg-from">${this.escapeHtml(from)}:</span><span class="msg-text">${this.escapeHtml(text)}</span>`;
+        this.messages.appendChild(div);
+        this.messages.scrollTop = this.messages.scrollHeight;
+        // Limit messages
+        while (this.messages.children.length > 100) {
+          this.messages.removeChild(this.messages.firstChild);
+        }
+      }
+
+      escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+    }
+
+    // ============================================
+    // MAIN APP
+    // ============================================
+    class App {
+      constructor() {
+        this.roomId = this.getOrCreateRoomId();
+        $('#room-id').textContent = this.roomId;
+        $('#copy-url').addEventListener('click', () => copyText(location.href));
+
+        this.renderer = new CanvasRenderer();
+        this.wsManager = new WebSocketManager(this.roomId, {
+          onState: (msg) => this.renderer.setSnapshot(msg),
+          onChat: (msg) => this.chat.addMessage(msg.from, msg.text, msg.from === this.myId),
+          onReaction: (msg) => this.renderer.addReaction(msg.emoji, msg.x, msg.y),
+          onWelcome: (msg) => { this.myId = msg.your_id; this.chat = new ChatPanel(this.wsManager, this.myId); }
+        });
+
+        this.setupReactions();
+        this.renderer.start();
+      }
+
+      getOrCreateRoomId() {
+        const params = new URLSearchParams(location.search);
+        let roomId = params.get('room');
+        if (!roomId) {
+          roomId = uuid();
+          history.replaceState(null, '', `?room=${roomId}`);
+        }
+        return roomId;
+      }
+
+      setupReactions() {
+        $$('.reaction-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const emoji = btn.dataset.emoji;
+            this.wsManager.sendReaction(emoji);
+            // Local feedback
+            btn.style.transform = 'scale(1.2)';
+            setTimeout(() => btn.style.transform = '', 100);
+          });
+        });
+      }
+    }
+
+    // Start
+    new App();
+  </script>
 </body>
 </html>
